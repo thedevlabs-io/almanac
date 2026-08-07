@@ -4,7 +4,8 @@
 import * as vscode from "vscode";
 import { addDays, keyOf } from "../core/day";
 import { dayIn, prune, type Counter } from "../core/record";
-import { applyTick, bump, setCommits } from "../core/record";
+import { addChange, applyTick, bump, setCommits } from "../core/record";
+import type { Change } from "../core/composition";
 import { emptyDatabase, type Database, type DayKey, type DayRecord, type Tick } from "../core/types";
 
 const FILE = "activity.json";
@@ -82,6 +83,10 @@ export class Store {
 
   count(date: DayKey, counter: Counter, by = 1): void {
     this.mutate(date, (record) => bump(record, counter, by));
+  }
+
+  addChange(date: DayKey, change: Change): void {
+    this.mutate(date, (record) => addChange(record, change));
   }
 
   recordCommits(date: DayKey, commits: number): void {

@@ -52,7 +52,15 @@ export class Tracker {
           return;
         }
         this.noteInput();
-        this.store.count(keyOf(new Date()), "edits");
+        const date = keyOf(new Date());
+        this.store.count(date, "edits");
+        for (const change of e.contentChanges) {
+          this.store.addChange(date, {
+            inserted: change.text.length,
+            removed: change.rangeLength,
+            multiline: change.text.includes("\n"),
+          });
+        }
         this.noteFile(e.document);
       }),
       vscode.window.onDidChangeTextEditorSelection(() => this.noteInput()),

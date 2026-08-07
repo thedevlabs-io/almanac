@@ -1,6 +1,8 @@
 // ABOUTME: The data model — one aggregated record per calendar day, and the shapes derived from it.
 // ABOUTME: Pure types; no vscode import so everything downstream stays unit-testable.
 
+import { emptyComposition, type Composition } from "./composition";
+
 /** A local calendar day, `YYYY-MM-DD`. Local, not UTC: a streak is a human day. */
 export type DayKey = string;
 
@@ -27,6 +29,8 @@ export interface DayRecord {
   sessions: number;
   /** Commits authored by you, when the Git extension can tell us. */
   commits?: number;
+  /** How text arrived: typed at the keyboard, or in blocks. Never attributed to a tool. */
+  composition: Composition;
 }
 
 export interface Database {
@@ -45,6 +49,7 @@ export function emptyDay(date: DayKey): DayRecord {
     saves: 0,
     files: 0,
     sessions: 0,
+    composition: emptyComposition(),
   };
 }
 

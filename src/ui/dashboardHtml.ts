@@ -80,6 +80,14 @@ ${baseStyles}
   .mile .tick { color: var(--vscode-charts-orange, #f47c20); }
   .mile .bar { margin-top: 6px; }
 
+  .split-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--l0); }
+  .split-bar .typed { background: var(--vscode-charts-blue, #4a9eff); }
+  .split-bar .inserted { background: var(--vscode-charts-orange, #f47c20); }
+  .split-key { display: flex; gap: var(--sp-4); margin-top: var(--sp-2); font-size: 12px;
+               color: var(--muted); flex-wrap: wrap; }
+  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+  .swatch.typed { background: var(--vscode-charts-blue, #4a9eff); }
+  .swatch.inserted { background: var(--vscode-charts-orange, #f47c20); }
   .empty-state { padding: var(--sp-4); border: 1px dashed var(--hairline);
                  border-radius: var(--radius); color: var(--muted); }
   footer { margin-top: var(--sp-4); padding-top: var(--sp-3);
@@ -246,6 +254,38 @@ ${baseStyles}
   punchWrap.appendChild(hours);
   punchWrap.appendChild(make('div', 'hint', 'Busiest: ' + model.punchcard.busiest));
   root.appendChild(section('When you work', punchWrap));
+
+  // ---- how the code arrived
+  {
+    const box = make('div');
+    const bar = make('div', 'split-bar');
+    const typed = make('span', 'typed');
+    typed.style.width = Math.round(model.composition.typedShare * 100) + '%';
+    const inserted = make('span', 'inserted');
+    inserted.style.width = Math.round(model.composition.insertedShare * 100) + '%';
+    bar.appendChild(typed);
+    bar.appendChild(inserted);
+    box.appendChild(bar);
+
+    const key = make('div', 'split-key');
+    const one = make('span');
+    one.appendChild(make('i', 'swatch typed'));
+    one.appendChild(make('span', null, ' Typed  ' + model.composition.typed.toLocaleString() + ' chars'));
+    const two = make('span');
+    two.appendChild(make('i', 'swatch inserted'));
+    two.appendChild(make('span', null, ' Arrived in blocks  ' + model.composition.inserted.toLocaleString() + ' chars'));
+    key.appendChild(one);
+    key.appendChild(two);
+    box.appendChild(key);
+
+    box.appendChild(make('div', 'hint', model.composition.known
+      ? model.composition.summary
+      : 'Nothing written yet.'));
+    box.appendChild(make('div', 'hint',
+      'A block is anything that landed at once — an autocomplete accept, a paste, a refactor or an agent edit. VS Code gives no way to tell those apart, so Cadence does not guess.'
+      + (model.assistants.length ? ' Installed assistants: ' + model.assistants.join(', ') + '.' : '')));
+    root.appendChild(section('How the code arrived', box));
+  }
 
   // ---- milestones
   if (model.milestones.length) {

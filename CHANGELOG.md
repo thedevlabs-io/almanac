@@ -20,6 +20,10 @@ First release.
 - **A 7x24 punchcard** of when you actually work, and your busiest hour.
 - **Commits per day**, authored by you, via the built-in Git extension.
 - **Milestones** as a quiet list — no popups.
+- **How the code arrived** — typed characters versus characters that landed in a
+  block, with installed AI assistants listed as context. Deliberately not framed
+  as "AI vs human": no extension API can distinguish an autocomplete accept from
+  a paste or an agent write, so Cadence measures what it can see and says so.
 - **Status bar** showing the current streak and today active time.
 - **Export to JSON** and **delete all data**, from the dashboard or the palette.
 

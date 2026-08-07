@@ -2,6 +2,7 @@
 // ABOUTME: Keeps every mutation in one place so no field is updated two different ways.
 
 import { emptyDay, type DayKey, type DayRecord, type Tick } from "./types";
+import { emptyComposition, foldChange, type Change } from "./composition";
 
 export function applyTick(record: DayRecord, tick: Tick): DayRecord {
   if (tick.seconds <= 0) {
@@ -29,6 +30,13 @@ export type Counter = "edits" | "saves" | "files" | "sessions";
 
 export function bump(record: DayRecord, counter: Counter, by = 1): DayRecord {
   return { ...record, [counter]: record[counter] + by };
+}
+
+export function addChange(record: DayRecord, change: Change): DayRecord {
+  return {
+    ...record,
+    composition: foldChange(record.composition ?? emptyComposition(), change),
+  };
 }
 
 export function setCommits(record: DayRecord, commits: number): DayRecord {

@@ -8,6 +8,7 @@ import { buildModel } from "./core/dashboardModel";
 import { Store } from "./storage/store";
 import { Tracker } from "./tracking/tracker";
 import { commitsByDay } from "./tracking/git";
+import { detectAssistants } from "./tracking/assistants";
 import { Dashboard } from "./ui/dashboard";
 import { StatusBar } from "./ui/statusBar";
 
@@ -35,6 +36,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     today: keyOf(new Date()),
     minSeconds: minSeconds(),
     heatmapDays: HEATMAP_DAYS,
+    assistants: detectAssistants().map((a) => a.name),
   });
 
   const paintStatus = (): void => {

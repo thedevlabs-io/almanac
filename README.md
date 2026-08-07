@@ -32,8 +32,25 @@ up and credit you with eight hours.
 - **Projects** — where the week went, by workspace folder.
 - **When you work** — a 7×24 punchcard, and your busiest hour.
 - **Commits** — per day, authored by you, read from open repositories.
+- **How the code arrived** — characters you typed one key at a time, versus
+  characters that landed in a block. See the note below before reading anything
+  into it.
 - **Milestones** — a quiet list. No popups, no confetti.
 - **Totals** — sessions, files touched, saves, edits, best day, tracking since.
+
+## What Cadence will *not* tell you
+
+It won't tell you how much of your code was written by AI, because nothing
+available to an extension can. VS Code exposes no API for whether a completion
+came from Copilot, and terminal agents like Claude Code write files the same way
+any other tool does.
+
+What it can measure honestly is **typed versus arrived in a block**. An
+autocomplete accept, a paste, a multi-cursor edit, a refactor and an agent's
+write all land as blocks and are indistinguishable from one another. So the
+dashboard reports exactly that, and names the assistants you have installed as
+context — never as attribution. A number claiming "43% AI-written" would look
+precise and be a guess, which is the one thing this extension is built not to do.
 
 ## Your data
 

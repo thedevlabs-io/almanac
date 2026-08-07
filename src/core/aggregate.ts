@@ -5,6 +5,7 @@ import { addDays, daysBetween, range, weekday } from "./day";
 import { languageName } from "./format";
 import { qualifyingDays, streakOf, type Streak } from "./streaks";
 import type { DayKey, DayRecord } from "./types";
+import { emptyComposition, insertedShare, type Composition } from "./composition";
 
 export interface HeatCell {
   date: DayKey;
@@ -44,6 +45,9 @@ export interface Summary {
   heatmap: HeatCell[];
   totals: { edits: number; saves: number; files: number; sessions: number; commits: number };
   commitsByDay: Record<DayKey, number>;
+  composition: Composition;
+  /** Share of written characters that arrived in blocks; undefined when nothing has. */
+  insertedShare?: number;
   firstDay?: DayKey;
 }
 
@@ -183,6 +187,14 @@ export function summarize(days: Record<DayKey, DayRecord>, options: SummaryOptio
   }, undefined);
 
   const qualifying = qualifyingDays(records, minSeconds);
+  const composition = records.reduce<Composition>((total, record) => {
+    const day = record.composition ?? emptyComposition();
+    return {
+      typedChars: total.typedChars + day.typedChars,
+      insertedChars: total.insertedChars + day.insertedChars,
+      removedChars: total.removedChars + day.removedChars,
+    };
+  }, emptyComposition());
   const commitsByDay: Record<DayKey, number> = {};
   for (const record of records) {
     if (record.commits) {
@@ -205,6 +217,8 @@ export function summarize(days: Record<DayKey, DayRecord>, options: SummaryOptio
     heatmap,
     totals: totalsOf(records),
     commitsByDay,
+    composition,
+    insertedShare: insertedShare(composition),
     firstDay: records.find((r) => r.activeSeconds > 0)?.date,
   };
 }

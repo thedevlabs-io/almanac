@@ -42,6 +42,15 @@ export interface DashboardModel {
   milestones: Milestone[];
   facts: { label: string; value: string }[];
   commits: { total: number; byDay: Record<DayKey, number> };
+  composition: {
+    typed: number;
+    inserted: number;
+    typedShare: number;
+    insertedShare: number;
+    summary: string;
+    known: boolean;
+  };
+  assistants: string[];
   empty: boolean;
 }
 
@@ -115,6 +124,32 @@ export interface ModelOptions {
   today: DayKey;
   minSeconds: number;
   heatmapDays: number;
+  /** Names of AI assistants installed, shown as context beside the split. */
+  assistants?: string[];
+}
+
+function compositionView(summary: Summary): DashboardModel["composition"] {
+  const { typedChars, insertedChars } = summary.composition;
+  const share = summary.insertedShare;
+  if (share === undefined) {
+    return {
+      typed: 0,
+      inserted: 0,
+      typedShare: 0,
+      insertedShare: 0,
+      summary: "Nothing written yet",
+      known: false,
+    };
+  }
+  const percent = Math.round(share * 100);
+  return {
+    typed: typedChars,
+    inserted: insertedChars,
+    typedShare: 1 - share,
+    insertedShare: share,
+    summary: `${percent}% of what you wrote arrived in blocks`,
+    known: true,
+  };
 }
 
 export function buildModel(
@@ -175,6 +210,8 @@ export function buildModel(
       { label: "Tracking since", value: summary.firstDay ?? "—" },
     ],
     commits: { total: summary.totals.commits, byDay: summary.commitsByDay },
+    composition: compositionView(summary),
+    assistants: options.assistants ?? [],
     empty: summary.total === 0,
   };
 }
