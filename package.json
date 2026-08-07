@@ -1,0 +1,121 @@
+{
+  "name": "cadence",
+  "displayName": "Cadence",
+  "description": "Local-only heatmaps and streaks for how you actually work — days, languages, projects and hours, tracked honestly.",
+  "version": "0.1.0",
+  "publisher": "thedevlabs-io",
+  "author": {
+    "name": "thedevlabs-io"
+  },
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "homepage": "https://github.com/thedevlabs-io/cadence",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thedevlabs-io/cadence.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thedevlabs-io/cadence/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "streak",
+    "heatmap",
+    "activity",
+    "statistics",
+    "time tracking",
+    "productivity"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cadence.open",
+        "title": "Cadence: Open dashboard",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "cadence.pause",
+        "title": "Cadence: Pause tracking"
+      },
+      {
+        "command": "cadence.resume",
+        "title": "Cadence: Resume tracking"
+      },
+      {
+        "command": "cadence.export",
+        "title": "Cadence: Export my data to JSON"
+      },
+      {
+        "command": "cadence.reset",
+        "title": "Cadence: Delete all tracked data"
+      }
+    ],
+    "configuration": {
+      "title": "Cadence",
+      "properties": {
+        "cadence.tracking.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Track activity. Turn off to stop recording entirely; existing data is kept until you delete it."
+        },
+        "cadence.trackProjects": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Record which project you worked on, by **workspace folder name only** — never the path, never file names. Turn off if a folder name would say more than you want."
+        },
+        "cadence.trackGitCommits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Count commits you authored in open repositories, read through VS Code's built-in Git extension."
+        },
+        "cadence.streak.minMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 240,
+          "description": "Minutes of active work a day needs before it counts towards a streak."
+        },
+        "cadence.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the current streak and today's active time in the status bar."
+        },
+        "cadence.retentionDays": {
+          "type": "number",
+          "default": 730,
+          "minimum": 30,
+          "maximum": 3650,
+          "description": "How many days of history to keep. Older days are deleted."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run lint && npm test && npm run build",
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "compile": "tsc -p ./ --noEmit",
+    "lint": "eslint .",
+    "test": "npm run compile && esbuild test/*.test.ts --bundle --outdir=dist/test --out-extension:.js=.cjs --platform=node --format=cjs && node --test dist/test/*.test.cjs",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.20.0",
+    "eslint": "^9.39.5",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.66.0"
+  }
+}

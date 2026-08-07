@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.vsix
+
+# Agent tooling config & memory — local only
+.claude/
+
+# Internal dev-only docs — never commit
+docs/PUBLISHING.md
+
+# Local scratch: exported activity data
+cadence-export.json
+*-export.json
+
+CLAUDE.local.md
