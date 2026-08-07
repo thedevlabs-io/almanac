@@ -3,6 +3,22 @@
 All notable changes to Almanac are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-08-07
+
+Reporting for client work.
+
+### Added
+
+- **Client reports** over a date range (this/last month, last 7 or 30 days, all
+  time), grouped by client then project, with a per-day breakdown.
+- **Client labels** map several folders onto one client
+  (`almanac.clients`, set via **Almanac: Set the client for this project**).
+- **Rounding** per client per day — 15m, 30m or 1h — alongside exact time.
+- **CSV export**: one row per day per project, for a spreadsheet or invoicing tool.
+- **Day drill-down**: click a day in the heatmap for its projects, languages,
+  hours, files, saves and commits.
+- Reports cover editor time only, which the report states plainly.
+
 ## [0.1.0] — 2026-08-07
 
 First release.
@@ -41,18 +57,6 @@ more than its own length, so a suspended machine cannot bank hours on wake.
   the workspace folder name, and `almanac.trackProjects` turns that off.
 - Everything lives in the extension own global storage; nothing is written into
   your workspace.
-
-### Reports
-
-- **Client reports** over a date range (this/last month, last 7 or 30 days, all
-  time), grouped by client then project, with a per-day breakdown.
-- **Client labels** map several folders onto one client
-  (`almanac.clients`, set via **Almanac: Set the client for this project**).
-- **Rounding** per client per day — 15m, 30m or 1h — alongside exact time.
-- **CSV export**: one row per day per project, for a spreadsheet or invoicing tool.
-- **Day drill-down**: click a day in the heatmap for its projects, languages,
-  hours, files, saves and commits.
-- Reports cover editor time only, which the report states plainly.
 
 ### Fixed before release, from a review pass
 

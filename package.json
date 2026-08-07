@@ -2,7 +2,7 @@
   "name": "almanac",
   "displayName": "Almanac",
   "description": "Local-only heatmaps and streaks for how you actually work \u2014 days, languages, projects and hours, tracked honestly.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "thedevlabs-io",
   "author": {
     "name": "thedevlabs-io"
