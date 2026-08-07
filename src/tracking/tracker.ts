@@ -3,6 +3,7 @@
 
 import * as vscode from "vscode";
 import { creditFor, isActive, startsSession, TICK_MS } from "../core/activityClock";
+import { classify } from "../core/composition";
 import { keyOf } from "../core/day";
 import type { Store } from "../storage/store";
 
@@ -41,17 +42,32 @@ export class Tracker {
 
   start(): void {
     this.subscriptions.push(
+      // Focus alone must never restart the clock: alt-tabbing in and reading for
+      // two minutes is not two minutes of work.
       vscode.window.onDidChangeWindowState((state) => {
         this.focused = state.focused;
-        if (state.focused) {
-          this.noteInput();
-        }
       }),
       vscode.workspace.onDidChangeTextDocument((e) => {
-        if (e.document.uri.scheme !== "file" || e.contentChanges.length === 0) {
+        if (!this.enabled || e.document.uri.scheme !== "file" || e.contentChanges.length === 0) {
           return;
         }
-        this.noteInput();
+        // Only keystroke-sized edits in the editor you're looking at count as
+        // input. A formatter, a git checkout or an agent writing a file must not
+        // hold the clock open while you're away — which is precisely the case
+        // this extension has to get right, since it also measures agent edits.
+        const inActiveEditor =
+          vscode.window.activeTextEditor?.document.uri.toString() === e.document.uri.toString();
+        const typed = e.contentChanges.some(
+          (change) =>
+            classify({
+              inserted: change.text.length,
+              removed: change.rangeLength,
+              multiline: change.text.includes("\n"),
+            }) === "typed"
+        );
+        if (inActiveEditor && typed) {
+          this.noteInput();
+        }
         const date = keyOf(new Date());
         this.store.count(date, "edits");
         for (const change of e.contentChanges) {
@@ -63,16 +79,22 @@ export class Tracker {
         }
         this.noteFile(e.document);
       }),
-      vscode.window.onDidChangeTextEditorSelection(() => this.noteInput()),
-      vscode.workspace.onDidSaveTextDocument((doc) => {
-        this.noteInput();
-        if (doc.uri.scheme === "file") {
-          this.store.count(keyOf(new Date()), "saves");
+      // Moving the cursor is the clearest human signal there is.
+      vscode.window.onDidChangeTextEditorSelection((e) => {
+        if (this.enabled && e.kind !== undefined) {
+          this.noteInput();
         }
       }),
-      vscode.window.onDidChangeActiveTextEditor((editor) => {
+      vscode.workspace.onDidSaveTextDocument((doc) => {
+        if (!this.enabled || doc.uri.scheme !== "file") {
+          return;
+        }
         this.noteInput();
-        if (editor) {
+        this.store.count(keyOf(new Date()), "saves");
+      }),
+      // Switching tabs is not input — an extension can open a document too.
+      vscode.window.onDidChangeActiveTextEditor((editor) => {
+        if (this.enabled && editor) {
           this.noteFile(editor.document);
         }
       })

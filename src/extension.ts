@@ -51,9 +51,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!config("cadence.trackGitCommits", true)) {
       return;
     }
+    const retention = config("cadence.retentionDays", 730);
     const counts = await commitsByDay();
     for (const [date, commits] of Object.entries(counts)) {
-      if (store.days[date] || commits > 0) {
+      // Only days we'd keep anyway — otherwise every commit in the repo's history
+      // creates a record that retention immediately prunes and this recreates.
+      if (commits > 0 && store.isWithinRetention(date, retention)) {
         store.recordCommits(date, commits);
       }
     }
@@ -76,11 +79,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   }, STATUS_REFRESH_MS);
 
+  // Kept for deactivate(), which must await the final write.
+  shutdown = async (): Promise<void> => {
+    clearInterval(ticker);
+    await tracker.dispose();
+    await store.dispose();
+  };
+
   context.subscriptions.push(
     statusBar,
-    store,
     new vscode.Disposable(() => clearInterval(ticker)),
-    new vscode.Disposable(() => void tracker.dispose()),
 
     vscode.commands.registerCommand("cadence.open", () => openDashboard()),
 
@@ -144,6 +152,9 @@ async function resetData(store: Store, after: () => void): Promise<void> {
   void vscode.window.showInformationMessage("Cadence: all tracked data deleted.");
 }
 
-export function deactivate(): void {
-  // Disposables registered on the context flush the store on the way out.
+let shutdown: (() => Promise<void>) | undefined;
+
+export function deactivate(): Promise<void> {
+  // Returned so VS Code waits for the last write instead of killing us mid-flush.
+  return shutdown ? shutdown() : Promise.resolve();
 }

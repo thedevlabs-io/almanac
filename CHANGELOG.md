@@ -42,6 +42,27 @@ more than its own length, so a suspended machine cannot bank hours on wake.
 - Everything lives in the extension own global storage; nothing is written into
   your workspace.
 
+### Fixed before release, from a review pass
+
+- **Two VS Code windows no longer overwrite each other's history.** Each window
+  runs its own extension host; writes now re-read the file and merge additively
+  inside a serialized queue, instead of replacing it wholesale.
+- **Writes are atomic** — written beside the real file and renamed — so being
+  killed mid-write can't truncate two years of history. A file that won't parse
+  is preserved as `activity.corrupt.json` and tracking pauses rather than
+  overwriting it.
+- **Pausing actually pauses.** Edit, save and file counters kept recording while
+  paused; every handler now returns early.
+- **Time is only credited for human input.** Regaining window focus, a formatter
+  or agent writing a file, and an extension opening a document all used to hold
+  the clock open. Now only cursor movement, saves, and keystroke-sized edits in
+  the editor you're looking at count — which matters most precisely because this
+  extension also measures agent-inserted blocks.
+- Commits: a repo whose `user.email` can't be determined is skipped rather than
+  counting the whole team, and commit days outside the retention window no longer
+  create records that retention immediately prunes.
+- The last few seconds of work are flushed on shutdown rather than dropped.
+
 ### Internal
 
 - No runtime dependencies. Type-aware ESLint and a `node:test` suite over the

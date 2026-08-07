@@ -67,12 +67,13 @@ export async function commitsByDay(maxEntries = 1000): Promise<Record<DayKey, nu
   for (const repository of git.repositories) {
     try {
       const email = await authorEmail(repository);
+      if (!email) {
+        // Without knowing who you are we'd be counting the whole team's work.
+        continue;
+      }
       const commits = await repository.log({ maxEntries });
       for (const commit of commits) {
-        if (!commit.authorDate) {
-          continue;
-        }
-        if (email && commit.authorEmail?.toLowerCase() !== email) {
+        if (!commit.authorDate || commit.authorEmail?.toLowerCase() !== email) {
           continue;
         }
         const key = keyOf(new Date(commit.authorDate));
