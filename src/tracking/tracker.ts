@@ -20,11 +20,11 @@ export class Tracker {
   constructor(private readonly store: Store) {}
 
   private get enabled(): boolean {
-    return vscode.workspace.getConfiguration().get<boolean>("cadence.tracking.enabled", true);
+    return vscode.workspace.getConfiguration().get<boolean>("almanac.tracking.enabled", true);
   }
 
   private get trackProjects(): boolean {
-    return vscode.workspace.getConfiguration().get<boolean>("cadence.trackProjects", true);
+    return vscode.workspace.getConfiguration().get<boolean>("almanac.trackProjects", true);
   }
 
   /** Folder name only — never the path, which would leak the whole directory tree. */

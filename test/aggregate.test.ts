@@ -7,7 +7,7 @@ import { languageHeatmap, levelsFor, summarize } from "../src/core/aggregate";
 import { emptyDay, type DayRecord } from "../src/core/types";
 import { applyTick, bump } from "../src/core/record";
 
-function day(date: string, seconds: number, language = "typescript", project = "cadence"): DayRecord {
+function day(date: string, seconds: number, language = "typescript", project = "almanac"): DayRecord {
   return applyTick(emptyDay(date), { seconds, hour: 10, language, project });
 }
 

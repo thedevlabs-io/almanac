@@ -48,7 +48,7 @@ export function dayIn(days: Record<DayKey, DayRecord>, date: DayKey): DayRecord 
   return days[date] ?? emptyDay(date);
 }
 
-/** Drop days older than the retention window. Cadence has no reason to keep them. */
+/** Drop days older than the retention window. Almanac has no reason to keep them. */
 export function prune(
   days: Record<DayKey, DayRecord>,
   oldestToKeep: DayKey

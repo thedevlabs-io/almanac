@@ -9,7 +9,7 @@ dist/
 docs/PUBLISHING.md
 
 # Local scratch: exported activity data
-cadence-export.json
+almanac-export.json
 *-export.json
 
 CLAUDE.local.md

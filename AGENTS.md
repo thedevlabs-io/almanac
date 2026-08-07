@@ -2,7 +2,7 @@
 
 ## What this is
 
-Cadence is a VS Code extension (publisher `thedevlabs-io`) that tracks how you
+Almanac is a VS Code extension (publisher `thedevlabs-io`) that tracks how you
 work — active time, streaks, languages, projects, hours — and shows it as
 heatmaps in a dashboard. The defining constraints are that the numbers are
 **honest** and the data **never leaves the machine**.
@@ -45,11 +45,11 @@ src/
    without both. `creditFor` caps a tick at `TICK_MS` on purpose — without it a
    sleeping laptop banks hours on wake.
 
-2. **Privacy.** Cadence has no network code and must never gain any. Store
+2. **Privacy.** Almanac has no network code and must never gain any. Store
    aggregates, never events. Never record file names, paths or contents;
    `tracker.noteFile` deliberately keeps a per-day `Set` in memory only, to count
    distinct files without storing anything identifying. Projects are the
-   workspace **folder name**, gated behind `cadence.trackProjects`.
+   workspace **folder name**, gated behind `almanac.trackProjects`.
 
 ## Conventions specific to this repo
 

@@ -19,8 +19,8 @@ export class Dashboard {
     Dashboard.actions = actions;
     if (!Dashboard.panel) {
       const panel = vscode.window.createWebviewPanel(
-        "cadence.dashboard",
-        "Cadence",
+        "almanac.dashboard",
+        "Almanac",
         vscode.ViewColumn.Active,
         { enableScripts: true, retainContextWhenHidden: true }
       );

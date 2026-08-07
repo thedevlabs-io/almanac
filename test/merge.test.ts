@@ -12,14 +12,14 @@ function day(date: string, seconds: number, language: string, project: string): 
 }
 
 test("two windows' work on the same day adds up rather than replacing", () => {
-  const a = bump(day("2026-08-07", 600, "typescript", "cadence"), "saves", 2);
+  const a = bump(day("2026-08-07", 600, "typescript", "almanac"), "saves", 2);
   const b = bump(day("2026-08-07", 900, "rust", "other"), "saves", 3);
   const merged = mergeDays(a, b);
 
   assert.equal(merged.activeSeconds, 1500);
   assert.equal(merged.saves, 5);
   assert.deepEqual(merged.languages, { typescript: 600, rust: 900 });
-  assert.deepEqual(merged.projects, { cadence: 600, other: 900 });
+  assert.deepEqual(merged.projects, { almanac: 600, other: 900 });
   assert.equal(merged.hours[9], 1500);
 });
 

@@ -7,7 +7,7 @@ import { emptyComposition, type Composition } from "./composition";
 export type DayKey = string;
 
 /**
- * One day of activity. Deliberately an aggregate — Cadence never keeps an event
+ * One day of activity. Deliberately an aggregate — Almanac never keeps an event
  * log, which would amount to a timeline of when you touched your keyboard.
  */
 export interface DayRecord {

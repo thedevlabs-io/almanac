@@ -1,4 +1,4 @@
-// ABOUTME: Activation for Cadence — starts tracking, keeps the status bar current, wires commands.
+// ABOUTME: Activation for Almanac — starts tracking, keeps the status bar current, wires commands.
 // ABOUTME: All the arithmetic lives in core/; this file only connects things.
 
 import * as vscode from "vscode";
@@ -20,13 +20,13 @@ function config<T>(key: string, fallback: T): T {
 }
 
 function minSeconds(): number {
-  return Math.max(1, config("cadence.streak.minMinutes", 5)) * 60;
+  return Math.max(1, config("almanac.streak.minMinutes", 5)) * 60;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const store = new Store(context);
   await store.load();
-  store.applyRetention(config("cadence.retentionDays", 730));
+  store.applyRetention(config("almanac.retentionDays", 730));
 
   const tracker = new Tracker(store);
   tracker.start();
@@ -42,16 +42,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const paintStatus = (): void => {
     statusBar.update(
       summarize(store.days, options()),
-      config("cadence.tracking.enabled", true)
+      config("almanac.tracking.enabled", true)
     );
   };
 
   /** Commits are read on demand — the Git API is slow enough not to poll. */
   const withCommits = async (): Promise<void> => {
-    if (!config("cadence.trackGitCommits", true)) {
+    if (!config("almanac.trackGitCommits", true)) {
       return;
     }
-    const retention = config("cadence.retentionDays", 730);
+    const retention = config("almanac.retentionDays", 730);
     const counts = await commitsByDay();
     for (const [date, commits] of Object.entries(counts)) {
       // Only days we'd keep anyway — otherwise every commit in the repo's history
@@ -90,30 +90,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     statusBar,
     new vscode.Disposable(() => clearInterval(ticker)),
 
-    vscode.commands.registerCommand("cadence.open", () => openDashboard()),
+    vscode.commands.registerCommand("almanac.open", () => openDashboard()),
 
-    vscode.commands.registerCommand("cadence.pause", async () => {
+    vscode.commands.registerCommand("almanac.pause", async () => {
       await vscode.workspace
         .getConfiguration()
-        .update("cadence.tracking.enabled", false, vscode.ConfigurationTarget.Global);
+        .update("almanac.tracking.enabled", false, vscode.ConfigurationTarget.Global);
       paintStatus();
-      void vscode.window.showInformationMessage("Cadence: tracking paused.");
+      void vscode.window.showInformationMessage("Almanac: tracking paused.");
     }),
 
-    vscode.commands.registerCommand("cadence.resume", async () => {
+    vscode.commands.registerCommand("almanac.resume", async () => {
       await vscode.workspace
         .getConfiguration()
-        .update("cadence.tracking.enabled", true, vscode.ConfigurationTarget.Global);
+        .update("almanac.tracking.enabled", true, vscode.ConfigurationTarget.Global);
       paintStatus();
-      void vscode.window.showInformationMessage("Cadence: tracking again.");
+      void vscode.window.showInformationMessage("Almanac: tracking again.");
     }),
 
-    vscode.commands.registerCommand("cadence.export", () => exportData(store)),
-    vscode.commands.registerCommand("cadence.reset", () => resetData(store, paintStatus)),
+    vscode.commands.registerCommand("almanac.export", () => exportData(store)),
+    vscode.commands.registerCommand("almanac.reset", () => resetData(store, paintStatus)),
 
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("cadence")) {
-        store.applyRetention(config("cadence.retentionDays", 730));
+      if (e.affectsConfiguration("almanac")) {
+        store.applyRetention(config("almanac.retentionDays", 730));
         paintStatus();
       }
     })
@@ -122,9 +122,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 async function exportData(store: Store): Promise<void> {
   const target = await vscode.window.showSaveDialog({
-    title: "Export Cadence data",
+    title: "Export Almanac data",
     filters: { JSON: ["json"] },
-    defaultUri: vscode.Uri.file("cadence-export.json"),
+    defaultUri: vscode.Uri.file("almanac-export.json"),
   });
   if (!target) {
     return;
@@ -134,12 +134,12 @@ async function exportData(store: Store): Promise<void> {
     target,
     new TextEncoder().encode(JSON.stringify(store.snapshot, null, 2) + "\n")
   );
-  void vscode.window.showInformationMessage("Cadence: exported. It's your data — nothing was sent anywhere.");
+  void vscode.window.showInformationMessage("Almanac: exported. It's your data — nothing was sent anywhere.");
 }
 
 async function resetData(store: Store, after: () => void): Promise<void> {
   const confirm = await vscode.window.showWarningMessage(
-    "Delete everything Cadence has tracked?",
+    "Delete everything Almanac has tracked?",
     { modal: true, detail: "Streaks, heatmaps and totals all go. This cannot be undone." },
     "Delete"
   );
@@ -149,7 +149,7 @@ async function resetData(store: Store, after: () => void): Promise<void> {
   await store.clear();
   after();
   Dashboard.close();
-  void vscode.window.showInformationMessage("Cadence: all tracked data deleted.");
+  void vscode.window.showInformationMessage("Almanac: all tracked data deleted.");
 }
 
 let shutdown: (() => Promise<void>) | undefined;

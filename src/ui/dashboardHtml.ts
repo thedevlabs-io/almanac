@@ -1,4 +1,4 @@
-// ABOUTME: Markup, styles and browser-side script for the Cadence dashboard.
+// ABOUTME: Markup, styles and browser-side script for the Almanac dashboard.
 // ABOUTME: Everything it renders comes from a pure model; this file only draws.
 
 import { csp, embed, nonce } from "./webview";
@@ -150,7 +150,7 @@ ${baseStyles}
 
   // ---- header + headline stats
   const header = make('header');
-  header.appendChild(make('h1', null, 'Cadence'));
+  header.appendChild(make('h1', null, 'Almanac'));
   header.appendChild(make('span', 'hint', model.headline.streakNote));
   const spacer = make('span', 'spacer');
   header.appendChild(spacer);
@@ -171,7 +171,7 @@ ${baseStyles}
     const empty = make('div', 'empty-state');
     empty.appendChild(make('div', null, 'Nothing tracked yet.'));
     empty.appendChild(make('div', 'hint',
-      'Cadence counts a minute when this window has focus and you have typed, moved the cursor or saved in the last two minutes. Come back after a stint of work.'));
+      'Almanac counts a minute when this window has focus and you have typed, moved the cursor or saved in the last two minutes. Come back after a stint of work.'));
     root.appendChild(empty);
   }
 
@@ -282,7 +282,7 @@ ${baseStyles}
       ? model.composition.summary
       : 'Nothing written yet.'));
     box.appendChild(make('div', 'hint',
-      'A block is anything that landed at once — an autocomplete accept, a paste, a refactor or an agent edit. VS Code gives no way to tell those apart, so Cadence does not guess.'
+      'A block is anything that landed at once — an autocomplete accept, a paste, a refactor or an agent edit. VS Code gives no way to tell those apart, so Almanac does not guess.'
       + (model.assistants.length ? ' Installed assistants: ' + model.assistants.join(', ') + '.' : '')));
     root.appendChild(section('How the code arrived', box));
   }
@@ -329,7 +329,7 @@ ${baseStyles}
 
   // ---- footer
   const footer = make('footer');
-  footer.appendChild(make('span', null, 'Everything here stays on this machine. Cadence has no network access.'));
+  footer.appendChild(make('span', null, 'Everything here stays on this machine. Almanac has no network access.'));
   footer.appendChild(make('span', 'spacer'));
   const exportBtn = make('button', 'secondary', 'Export');
   exportBtn.addEventListener('click', () => vscode.postMessage({ type: 'export' }));

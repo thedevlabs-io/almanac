@@ -1,6 +1,6 @@
 {
-  "name": "cadence",
-  "displayName": "Cadence",
+  "name": "almanac",
+  "displayName": "Almanac",
   "description": "Local-only heatmaps and streaks for how you actually work — days, languages, projects and hours, tracked honestly.",
   "version": "0.1.0",
   "publisher": "thedevlabs-io",
@@ -9,13 +9,13 @@
   },
   "license": "MIT",
   "icon": "media/icon.png",
-  "homepage": "https://github.com/thedevlabs-io/cadence",
+  "homepage": "https://github.com/thedevlabs-io/almanac",
   "repository": {
     "type": "git",
-    "url": "https://github.com/thedevlabs-io/cadence.git"
+    "url": "https://github.com/thedevlabs-io/almanac.git"
   },
   "bugs": {
-    "url": "https://github.com/thedevlabs-io/cadence/issues"
+    "url": "https://github.com/thedevlabs-io/almanac/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -38,58 +38,58 @@
   "contributes": {
     "commands": [
       {
-        "command": "cadence.open",
-        "title": "Cadence: Open dashboard",
+        "command": "almanac.open",
+        "title": "Almanac: Open dashboard",
         "icon": "$(graph)"
       },
       {
-        "command": "cadence.pause",
-        "title": "Cadence: Pause tracking"
+        "command": "almanac.pause",
+        "title": "Almanac: Pause tracking"
       },
       {
-        "command": "cadence.resume",
-        "title": "Cadence: Resume tracking"
+        "command": "almanac.resume",
+        "title": "Almanac: Resume tracking"
       },
       {
-        "command": "cadence.export",
-        "title": "Cadence: Export my data to JSON"
+        "command": "almanac.export",
+        "title": "Almanac: Export my data to JSON"
       },
       {
-        "command": "cadence.reset",
-        "title": "Cadence: Delete all tracked data"
+        "command": "almanac.reset",
+        "title": "Almanac: Delete all tracked data"
       }
     ],
     "configuration": {
-      "title": "Cadence",
+      "title": "Almanac",
       "properties": {
-        "cadence.tracking.enabled": {
+        "almanac.tracking.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Track activity. Turn off to stop recording entirely; existing data is kept until you delete it."
         },
-        "cadence.trackProjects": {
+        "almanac.trackProjects": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Record which project you worked on, by **workspace folder name only** — never the path, never file names. Turn off if a folder name would say more than you want."
         },
-        "cadence.trackGitCommits": {
+        "almanac.trackGitCommits": {
           "type": "boolean",
           "default": true,
           "description": "Count commits you authored in open repositories, read through VS Code's built-in Git extension."
         },
-        "cadence.streak.minMinutes": {
+        "almanac.streak.minMinutes": {
           "type": "number",
           "default": 5,
           "minimum": 1,
           "maximum": 240,
           "description": "Minutes of active work a day needs before it counts towards a streak."
         },
-        "cadence.statusBar.enabled": {
+        "almanac.statusBar.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Show the current streak and today's active time in the status bar."
         },
-        "cadence.retentionDays": {
+        "almanac.retentionDays": {
           "type": "number",
           "default": 730,
           "minimum": 30,

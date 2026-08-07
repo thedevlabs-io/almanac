@@ -10,14 +10,14 @@ export class StatusBar {
 
   constructor() {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
-    this.item.command = "cadence.open";
-    this.item.name = "Cadence";
+    this.item.command = "almanac.open";
+    this.item.name = "Almanac";
   }
 
   update(summary: Summary, tracking: boolean): void {
     const enabled = vscode.workspace
       .getConfiguration()
-      .get<boolean>("cadence.statusBar.enabled", true);
+      .get<boolean>("almanac.statusBar.enabled", true);
     if (!enabled) {
       this.item.hide();
       return;
@@ -28,7 +28,7 @@ export class StatusBar {
     this.item.text = `${flame} · ${shortDuration(summary.today)}`;
     this.item.tooltip = new vscode.MarkdownString(
       [
-        tracking ? "**Cadence**" : "**Cadence** — tracking paused",
+        tracking ? "**Almanac**" : "**Almanac** — tracking paused",
         "",
         streak > 0
           ? `${streak}-day streak${summary.streak.todayCounts ? "" : " · today hasn't counted yet"}`

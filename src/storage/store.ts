@@ -51,7 +51,7 @@ export class Store {
       await this.preserveCorrupt();
       void vscode.window
         .showWarningMessage(
-          "Cadence: your history file couldn't be read, so tracking is paused to avoid overwriting it.",
+          "Almanac: your history file couldn't be read, so tracking is paused to avoid overwriting it.",
           "Start fresh"
         )
         .then(async (choice) => {
