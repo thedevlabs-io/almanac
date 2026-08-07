@@ -6,6 +6,7 @@ import { duration, languageName, plural } from "./format";
 import { languageHeatmap, summarize, type HeatCell, type Summary } from "./aggregate";
 import { milestonesFor, type Milestone } from "./milestones";
 import type { DayKey, DayRecord } from "./types";
+import { dayDetail, type ClientMap, type DayDetail } from "./report";
 
 export interface HeatColumn {
   /** Month label above this column, when the month changes here. */
@@ -51,6 +52,8 @@ export interface DashboardModel {
     known: boolean;
   };
   assistants: string[];
+  /** Only days with activity, for the click-through under the heatmap. */
+  details: Record<DayKey, DayDetail>;
   empty: boolean;
 }
 
@@ -126,6 +129,7 @@ export interface ModelOptions {
   heatmapDays: number;
   /** Names of AI assistants installed, shown as context beside the split. */
   assistants?: string[];
+  clients?: ClientMap;
 }
 
 function compositionView(summary: Summary): DashboardModel["composition"] {
@@ -150,6 +154,21 @@ function compositionView(summary: Summary): DashboardModel["composition"] {
     summary: `${percent}% of what you wrote arrived in blocks`,
     known: true,
   };
+}
+
+function detailsFor(
+  days: Record<DayKey, DayRecord>,
+  dates: DayKey[],
+  clients: ClientMap
+): Record<DayKey, DayDetail> {
+  const out: Record<DayKey, DayDetail> = {};
+  for (const date of dates) {
+    const detail = dayDetail(days[date], clients);
+    if (detail) {
+      out[date] = detail;
+    }
+  }
+  return out;
 }
 
 export function buildModel(
@@ -212,6 +231,7 @@ export function buildModel(
     commits: { total: summary.totals.commits, byDay: summary.commitsByDay },
     composition: compositionView(summary),
     assistants: options.assistants ?? [],
+    details: detailsFor(days, summary.heatmap.map((c) => c.date), options.clients ?? {}),
     empty: summary.total === 0,
   };
 }

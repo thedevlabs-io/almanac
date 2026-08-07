@@ -42,6 +42,18 @@ more than its own length, so a suspended machine cannot bank hours on wake.
 - Everything lives in the extension own global storage; nothing is written into
   your workspace.
 
+### Reports
+
+- **Client reports** over a date range (this/last month, last 7 or 30 days, all
+  time), grouped by client then project, with a per-day breakdown.
+- **Client labels** map several folders onto one client
+  (`almanac.clients`, set via **Almanac: Set the client for this project**).
+- **Rounding** per client per day — 15m, 30m or 1h — alongside exact time.
+- **CSV export**: one row per day per project, for a spreadsheet or invoicing tool.
+- **Day drill-down**: click a day in the heatmap for its projects, languages,
+  hours, files, saves and commits.
+- Reports cover editor time only, which the report states plainly.
+
 ### Fixed before release, from a review pass
 
 - **Two VS Code windows no longer overwrite each other's history.** Each window

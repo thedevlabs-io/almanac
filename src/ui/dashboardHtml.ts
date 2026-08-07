@@ -88,6 +88,17 @@ ${baseStyles}
   .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
   .swatch.typed { background: var(--vscode-charts-blue, #4a9eff); }
   .swatch.inserted { background: var(--vscode-charts-orange, #f47c20); }
+  .cell.clickable { cursor: pointer; }
+  .cell.clickable:hover { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+  .detail:empty { display: none; }
+  .detail { margin-top: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--hairline);
+            border-radius: var(--radius); }
+  .detail-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+  .detail-head .ghost { margin-left: auto; }
+  .detail-row { display: grid; grid-template-columns: 90px 1fr; gap: var(--sp-3);
+                padding: var(--sp-2) 0; border-top: 1px solid var(--hairline); }
+  .detail-lang { display: grid; grid-template-columns: 130px 1fr auto; gap: var(--sp-2);
+                 align-items: center; }
   .empty-state { padding: var(--sp-4); border: 1px dashed var(--hairline);
                  border-radius: var(--radius); color: var(--muted); }
   footer { margin-top: var(--sp-4); padding-top: var(--sp-3);
@@ -119,15 +130,83 @@ ${baseStyles}
     return box;
   }
 
-  function cell(c, size) {
+  function cell(c, opts) {
     const node = make('div', 'cell' + (c ? ' l' + c.level : ' blank'));
     if (c) {
       const commits = model.commits.byDay[c.date];
       node.title = c.date + ' · ' + (c.seconds ? Math.round(c.seconds / 60) + ' min' : 'nothing')
         + (commits ? ' · ' + commits + ' commits' : '');
+      if (opts && opts.clickable && model.details[c.date]) {
+        node.classList.add('clickable');
+        node.addEventListener('click', () => showDay(c.date));
+      }
     }
-    if (size) { node.style.width = node.style.height = size; }
     return node;
+  }
+
+  /** The drill-down: what one day actually consisted of. */
+  function showDay(date) {
+    const detail = model.details[date];
+    const host = document.getElementById('dayDetail');
+    host.innerHTML = '';
+    if (!detail) { return; }
+
+    const head = make('div', 'detail-head');
+    head.appendChild(make('strong', null, date));
+    head.appendChild(make('span', 'hint', detail.total + ' · ' + detail.files + ' files · '
+      + detail.saves + ' saves' + (detail.commits ? ' · ' + detail.commits + ' commits' : '')));
+    const close = make('button', 'ghost', 'Close');
+    close.addEventListener('click', () => { host.innerHTML = ''; });
+    head.appendChild(close);
+    host.appendChild(head);
+
+    if (detail.projects.length) {
+      const row = make('div', 'detail-row');
+      row.appendChild(make('span', 'label', 'Projects'));
+      const list = make('div');
+      for (const project of detail.projects) {
+        const line = make('div', null);
+        line.appendChild(make('span', null, project.name));
+        if (project.client !== project.name) {
+          line.appendChild(make('span', 'hint', '  → ' + project.client));
+        }
+        line.appendChild(make('span', 'hint', '  ' + project.label));
+        list.appendChild(line);
+      }
+      row.appendChild(list);
+      host.appendChild(row);
+    }
+
+    if (detail.languages.length) {
+      const row = make('div', 'detail-row');
+      row.appendChild(make('span', 'label', 'Languages'));
+      const list = make('div');
+      for (const language of detail.languages) {
+        const line = make('div', 'detail-lang');
+        line.appendChild(make('span', null, language.name));
+        const bar = make('div', 'bar');
+        const fill = make('span');
+        fill.style.width = Math.max(language.share * 100, 2) + '%';
+        bar.appendChild(fill);
+        line.appendChild(bar);
+        line.appendChild(make('span', 'hint', language.label));
+        list.appendChild(line);
+      }
+      row.appendChild(list);
+      host.appendChild(row);
+    }
+
+    const row = make('div', 'detail-row');
+    row.appendChild(make('span', 'label', 'Hours'));
+    const hours = make('div', 'mini');
+    for (const hour of detail.hours) {
+      const node = make('div', 'cell' + (hour.level ? ' l' + hour.level : ''));
+      node.title = hour.hour + ':00 · ' + Math.round(hour.seconds / 60) + ' min';
+      hours.appendChild(node);
+    }
+    row.appendChild(hours);
+    host.appendChild(row);
+    host.scrollIntoView({ block: 'nearest' });
   }
 
   function heatmap(columns) {
@@ -135,7 +214,7 @@ ${baseStyles}
     for (const column of columns) {
       const col = make('div', 'heat-col');
       col.appendChild(make('div', 'month', column.month || ''));
-      for (const c of column.cells) { col.appendChild(cell(c)); }
+      for (const c of column.cells) { col.appendChild(cell(c, { clickable: true })); }
       grid.appendChild(col);
     }
     return grid;
@@ -154,6 +233,9 @@ ${baseStyles}
   header.appendChild(make('span', 'hint', model.headline.streakNote));
   const spacer = make('span', 'spacer');
   header.appendChild(spacer);
+  const report = make('button', 'secondary', 'Report');
+  report.addEventListener('click', () => vscode.postMessage({ type: 'report' }));
+  header.appendChild(report);
   const refresh = make('button', 'secondary', 'Refresh');
   refresh.addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
   header.appendChild(refresh);
@@ -178,11 +260,15 @@ ${baseStyles}
   // ---- day heatmap
   const heatWrap = make('div');
   heatWrap.appendChild(heatmap(model.columns));
+  heatWrap.appendChild(make('div', 'hint', 'Click a day to see what it consisted of.'));
   const legend = make('div', 'legend');
   legend.appendChild(make('span', null, model.legendLabels[0]));
   for (const level of [0, 1, 2, 3, 4]) { legend.appendChild(cell({ level, date: '', seconds: 0 })); }
   legend.appendChild(make('span', null, model.legendLabels[1]));
   heatWrap.appendChild(legend);
+  const detailHost = make('div', 'detail');
+  detailHost.id = 'dayDetail';
+  heatWrap.appendChild(detailHost);
   root.appendChild(section('Every day', heatWrap));
 
   // ---- languages

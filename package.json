@@ -1,7 +1,7 @@
 {
   "name": "almanac",
   "displayName": "Almanac",
-  "description": "Local-only heatmaps and streaks for how you actually work — days, languages, projects and hours, tracked honestly.",
+  "description": "Local-only heatmaps and streaks for how you actually work \u2014 days, languages, projects and hours, tracked honestly.",
   "version": "0.1.0",
   "publisher": "thedevlabs-io",
   "author": {
@@ -57,6 +57,19 @@
       {
         "command": "almanac.reset",
         "title": "Almanac: Delete all tracked data"
+      },
+      {
+        "command": "almanac.report",
+        "title": "Almanac: Open report",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "almanac.setClient",
+        "title": "Almanac: Set the client for this project"
+      },
+      {
+        "command": "almanac.exportCsv",
+        "title": "Almanac: Export report as CSV"
       }
     ],
     "configuration": {
@@ -70,7 +83,7 @@
         "almanac.trackProjects": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Record which project you worked on, by **workspace folder name only** — never the path, never file names. Turn off if a folder name would say more than you want."
+          "markdownDescription": "Record which project you worked on, by **workspace folder name only** \u2014 never the path, never file names. Turn off if a folder name would say more than you want."
         },
         "almanac.trackGitCommits": {
           "type": "boolean",
@@ -95,6 +108,31 @@
           "minimum": 30,
           "maximum": 3650,
           "description": "How many days of history to keep. Older days are deleted."
+        },
+        "almanac.clients": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "markdownDescription": "Maps a project folder name to the client it belongs to, so several repos report as one client \u2014 e.g. `{ \"thedevlabs-api\": \"thedevlabs\" }`. Projects with no entry report under their own folder name. Set it from **Almanac: Set the client for this project**."
+        },
+        "almanac.report.rounding": {
+          "type": "string",
+          "enum": [
+            "none",
+            "15m",
+            "30m",
+            "1h"
+          ],
+          "enumDescriptions": [
+            "Exact tracked time",
+            "Round each day up to 15 minutes",
+            "Round each day up to 30 minutes",
+            "Round each day up to the hour"
+          ],
+          "default": "none",
+          "description": "Rounding applied per client per day in reports. Raw time is always shown alongside."
         }
       }
     }

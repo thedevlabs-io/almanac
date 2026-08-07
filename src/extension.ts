@@ -9,6 +9,15 @@ import { Store } from "./storage/store";
 import { Tracker } from "./tracking/tracker";
 import { commitsByDay } from "./tracking/git";
 import { detectAssistants } from "./tracking/assistants";
+import {
+  buildReport,
+  presetRange,
+  toCsv,
+  type ClientMap,
+  type Rounding,
+} from "./core/report";
+import { ReportPanel, toView } from "./ui/report";
+import { PRESETS } from "./core/report";
 import { Dashboard } from "./ui/dashboard";
 import { StatusBar } from "./ui/statusBar";
 
@@ -37,7 +46,44 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     minSeconds: minSeconds(),
     heatmapDays: HEATMAP_DAYS,
     assistants: detectAssistants().map((a) => a.name),
+    clients: clients(),
   });
+
+  const clients = (): ClientMap => config<ClientMap>("almanac.clients", {});
+
+  let activePreset = "this-month";
+
+  const currentReport = () => {
+    const today = keyOf(new Date());
+    const { from, to, label } = presetRange(activePreset, today);
+    return buildReport(store.days, {
+      from,
+      to,
+      label,
+      clients: clients(),
+      rounding: config<Rounding>("almanac.report.rounding", "none"),
+    });
+  };
+
+  const openReport = (): void => {
+    ReportPanel.show(
+      toView(currentReport(), PRESETS.map((p) => ({ id: p.id, label: p.label })), activePreset),
+      {
+        setRange: (preset) => {
+          activePreset = preset;
+          openReport();
+        },
+        setRounding: (rounding) => {
+          void vscode.workspace
+            .getConfiguration()
+            .update("almanac.report.rounding", rounding, vscode.ConfigurationTarget.Global)
+            .then(() => openReport());
+        },
+        exportCsv: () => void exportCsv(currentReport()),
+        editClients: () => void setClient(store),
+      }
+    );
+  };
 
   const paintStatus = (): void => {
     statusBar.update(
@@ -65,6 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const openDashboard = async (): Promise<void> => {
     await withCommits();
     Dashboard.show(buildModel(store.days, options()), {
+      report: openReport,
       refresh: () => void openDashboard(),
       export: () => void exportData(store),
       reset: () => void resetData(store, paintStatus),
@@ -108,6 +155,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void vscode.window.showInformationMessage("Almanac: tracking again.");
     }),
 
+    vscode.commands.registerCommand("almanac.report", () => openReport()),
+    vscode.commands.registerCommand("almanac.setClient", () => setClient(store)),
+    vscode.commands.registerCommand("almanac.exportCsv", () => exportCsv(currentReport())),
     vscode.commands.registerCommand("almanac.export", () => exportData(store)),
     vscode.commands.registerCommand("almanac.reset", () => resetData(store, paintStatus)),
 
@@ -118,6 +168,71 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     })
   );
+}
+
+/** Label the open folder with the client it belongs to, so several repos bill as one. */
+async function setClient(store: Store): Promise<void> {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  const known = new Set<string>([
+    ...folders.map((f) => f.name),
+    ...Object.values(store.days).flatMap((day) => Object.keys(day.projects)),
+  ]);
+  if (known.size === 0) {
+    void vscode.window.showInformationMessage("Almanac: no projects tracked yet.");
+    return;
+  }
+
+  const project =
+    known.size === 1
+      ? [...known][0]
+      : (
+          await vscode.window.showQuickPick([...known].sort(), {
+            title: "Which project?",
+          })
+        );
+  if (!project) {
+    return;
+  }
+
+  const map = vscode.workspace.getConfiguration().get<ClientMap>("almanac.clients", {});
+  const client = await vscode.window.showInputBox({
+    title: `Client for "${project}"`,
+    prompt: "Projects sharing a client name are reported together. Leave empty to unset.",
+    value: map[project] ?? "",
+  });
+  if (client === undefined) {
+    return;
+  }
+
+  const next = { ...map };
+  if (client.trim() === "") {
+    delete next[project];
+  } else {
+    next[project] = client.trim();
+  }
+  await vscode.workspace
+    .getConfiguration()
+    .update("almanac.clients", next, vscode.ConfigurationTarget.Global);
+  void vscode.window.showInformationMessage(
+    client.trim() ? `Almanac: "${project}" reports as ${client.trim()}.` : `Almanac: cleared the client for "${project}".`
+  );
+}
+
+async function exportCsv(report: ReturnType<typeof buildReport>): Promise<void> {
+  if (report.byDay.length === 0) {
+    void vscode.window.showInformationMessage("Almanac: nothing tracked in that range.");
+    return;
+  }
+  const target = await vscode.window.showSaveDialog({
+    title: "Export report as CSV",
+    filters: { CSV: ["csv"] },
+    defaultUri: vscode.Uri.file(`almanac-${report.from}-to-${report.to}.csv`),
+  });
+  if (!target) {
+    return;
+  }
+  await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(toCsv(report)));
+  void vscode.window.showInformationMessage("Almanac: report exported.");
 }
 
 async function exportData(store: Store): Promise<void> {
@@ -149,6 +264,7 @@ async function resetData(store: Store, after: () => void): Promise<void> {
   await store.clear();
   after();
   Dashboard.close();
+  ReportPanel.close();
   void vscode.window.showInformationMessage("Almanac: all tracked data deleted.");
 }
 

@@ -52,6 +52,27 @@ dashboard reports exactly that, and names the assistants you have installed as
 context — never as attribution. A number claiming "43% AI-written" would look
 precise and be a guess, which is the one thing this extension is built not to do.
 
+## Reports for client work
+
+**Almanac: Open report** (or the *Report* button on the dashboard) gives you time
+by client and by day over a date range.
+
+- **Client labels** — run **Almanac: Set the client for this project** to map a
+  folder to a client, so `thedevlabs-api` and `thedevlabs-web` report as one
+  line. Unlabelled projects report under their folder name.
+- **Ranges** — this month, last month, last 7 or 30 days, all time.
+- **Rounding** — round each day up to 15 minutes, 30 minutes or the hour, per
+  client per day, the way consultancies bill. Exact time is always shown too.
+- **CSV export** — one row per day per project (`date, client, project, hours,
+  rounded_hours, seconds`), which drops straight into a spreadsheet or an
+  invoicing tool.
+- **Day drill-down** — click any day in the heatmap for what it consisted of:
+  projects, languages, hours worked, files, saves, commits.
+
+Almanac reports **time spent in the editor**. Time in meetings, browsers,
+terminals-only work and thinking away from the keyboard is not tracked, so treat
+the report as evidence supporting an invoice rather than the invoice itself.
+
 ## Your data
 
 Almanac has **no network access at all**. Everything lives in the extension's own

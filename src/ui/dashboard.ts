@@ -6,6 +6,7 @@ import { dashboardHtml } from "./dashboardHtml";
 import type { DashboardModel } from "../core/dashboardModel";
 
 export interface DashboardActions {
+  report(): void;
   refresh(): void;
   export(): void;
   reset(): void;
@@ -31,7 +32,9 @@ export class Dashboard {
           return;
         }
         const type = (raw as { type?: unknown }).type;
-        if (type === "refresh") {
+        if (type === "report") {
+          Dashboard.actions?.report();
+        } else if (type === "refresh") {
           Dashboard.actions?.refresh();
         } else if (type === "export") {
           Dashboard.actions?.export();
