@@ -2,7 +2,7 @@
   "name": "almanac",
   "displayName": "Almanac",
   "description": "Local-only heatmaps and streaks for how you actually work \u2014 days, languages, projects and hours, tracked honestly.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "thedevlabs-io",
   "author": {
     "name": "thedevlabs-io"
@@ -79,6 +79,23 @@
           "type": "boolean",
           "default": true,
           "description": "Track activity. Turn off to stop recording entirely; existing data is kept until you delete it."
+        },
+        "almanac.idleMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 30,
+          "markdownDescription": "How long a keystroke, scroll, save or terminal command keeps the clock running. Raise it if reading and thinking are being scored as idle; lower it for a stricter count. The window must still be **focused** — the clock stops the moment you switch away."
+        },
+        "almanac.trackTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Count working in the integrated terminal as activity: switching to a terminal, and starting a command in the one you're in."
+        },
+        "almanac.trackDebug": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Count stepping through a debug session as activity. Turn off if you debug something that stops on its own — a crash loop under `restart` lands on a new frame just as a step does, and nothing in the API can tell them apart."
         },
         "almanac.trackProjects": {
           "type": "boolean",

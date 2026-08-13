@@ -3,6 +3,81 @@
 All notable changes to Almanac are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-08-13
+
+Time tracked now matches time worked.
+
+The clock only ever listened for typing, cursor moves and saves inside a text
+editor, and gave up two minutes after the last one. Everything else a working
+day is made of — running the test suite, stepping through a debugger, reading a
+file you scroll but never touch — was scored as idle, so tracked time came in
+well under real time.
+
+### Added
+
+- **Terminal work counts**: switching to a terminal, and starting a command in
+  it through shell integration (VS Code 1.93+, probed at runtime so older builds
+  are unaffected). Only the *start*, because a command that outlives the idle
+  window is the kind you walked away from, and only in the *active* terminal.
+  Off via `almanac.trackTerminal`.
+- **Scrolling counts**, in the editor you're actually in, when the top line
+  really moved — a pane resize is not a scroll.
+- **Stepping in the debugger counts** (VS Code 1.94+, probed at runtime), with
+  `almanac.trackDebug` to turn it off: a session that stops on its own, like a
+  crash loop under `restart`, lands on a new frame exactly as a step does, and
+  nothing in the API separates them. Starting a session and changing breakpoints
+  deliberately do **not** count — the debug adapter fires both by itself.
+- **Typing outside a saved file counts** — untitled buffers, notebook cells.
+  Only files are still counted towards edits, saves and distinct-file totals.
+- `almanac.idleMinutes` (1–30) to set the tail yourself.
+
+### Changed
+
+- The idle window default moved from 2 minutes to **5**. Reading a paragraph or
+  watching a build no longer stops the clock.
+
+### Fixed
+
+- **Saving no longer counts as input.** VS Code reports an extension's `save()`
+  as `Manual`, exactly like your Ctrl+S, so with `files.autoSave` — or any agent
+  that saves what it wrote — a machine's save credited time as though you were
+  there. A save of your own follows the typing that already counted, so nothing
+  real is lost. Saves are still counted in the day's totals; they just no longer
+  move the clock.
+
+- **Opening a window no longer credits time on its own.** The clock started as
+  though input had just happened, so a window restored on login and left alone
+  banked an idle window's worth of time. It now starts shut and opens on the
+  first thing you do.
+
+### Security of the number
+
+- **A machine signal can hold a clock open, never start one.** Terminal commands
+  and debug steps now only extend a clock a keyboard or pointer opened, because
+  an agent shows the terminal it works in — which makes it the active one — and
+  a crash loop lands on a stack frame just as a step does. Whatever an extension
+  is doing, it cannot claim more than one idle window past the last thing you
+  actually did.
+
+### Unchanged
+
+- The rule itself: focused **and** a human signal inside the idle window. No path
+  credits time without both, a tick is still capped at its own length, and
+  regaining focus alone still does not restart the clock.
+- **Every edit is still counted, whoever made it** — yours, a paste, a refactor,
+  an agent — split by how the text arrived, not by who is guessed to have
+  written it. Widening the clock changes *when time is credited*, never *what is
+  counted*.
+- No network code, no events stored, no file names or paths recorded.
+
+### Internal
+
+- `tracking/` split by job: `signals.ts` answers "is a person here?",
+  `tracker.ts` records what was produced, `settings.ts` caches configuration so
+  scroll and selection events don't re-read it many times a second.
+- The scroll rule moved into `core/activityClock.ts` as `isHumanScroll`, where
+  the rules that define a tracked minute live and can be tested.
+
 ## [0.2.0] — 2026-08-07
 
 Reporting for client work.
