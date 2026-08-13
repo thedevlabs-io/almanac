@@ -11,13 +11,30 @@ on your own machine.
 
 Most "time in editor" numbers are fiction: they count a focused window whether
 or not anyone is at the keyboard. Almanac counts a minute only when **the window
-has focus and you typed, moved the cursor, or saved within the last two minutes**.
-Walk away and the clock stops. Read code for three minutes without touching
-anything and it stops too — which is the honest answer, even when it's the less
+has focus and you did something within the last five minutes** — typed, moved
+the cursor or scrolled. Walk away and the clock stops. Leave a focused window
+untouched and it stops too, which is the honest answer even when it's the less
 flattering one.
 
-A long gap can never bank more than one tick, so a suspended laptop doesn't wake
-up and credit you with eight hours.
+Honest cuts both ways: work that never moves the editor is still work, so
+running a command in the terminal and stepping through a breakpoint count too.
+But neither can prove *you* did it — an agent shows the terminal it works in,
+and a crash loop lands on a stack frame just as your step does — so these can
+only hold open a clock your keyboard already opened. Nothing automated can
+claim more than one idle window past the last thing you actually did.
+
+Saving isn't a signal at all. VS Code reports an extension's `save()` call as
+"manual", so a save can't tell you from an agent — and a save of your own comes
+after the typing that already counted.
+
+Set the tail with `almanac.idleMinutes` (1–30, 5 by default). A long gap can
+never bank more than one tick, so a suspended laptop doesn't wake up and credit
+you with eight hours.
+
+**Agent-written code is counted, not credited as time.** Every edit lands in the
+totals whoever made it, split by how the text arrived — typed a key at a time,
+or in a block. What an agent's writing cannot do is make it look as though you
+were sitting there.
 
 ## What it shows
 
