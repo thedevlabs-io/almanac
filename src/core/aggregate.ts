@@ -32,13 +32,28 @@ export function heatLevel(seconds: number, busiest: number): HeatCell["level"] {
   return share <= 0.75 ? 3 : 4;
 }
 
-export function heatmap(days: Record<DayKey, DayRecord>, from: DayKey, to: DayKey): HeatCell[] {
+/**
+ * The cells, plus the scale they were cut against.
+ *
+ * The scale is returned because a legend reading "Less to More" tells nobody
+ * anything. With the thresholds in hand it can say what a shade is worth in
+ * hours, which is the difference between a decorative graph and a readable one.
+ */
+export interface Heatmap {
+  cells: HeatCell[];
+  busiest: number;
+  /** Upper bound in seconds of levels 1, 2 and 3. Level 4 runs to `busiest`. */
+  thresholds: [number, number, number];
+}
+
+export function heatmap(days: Record<DayKey, DayRecord>, from: DayKey, to: DayKey): Heatmap {
   const window = range(from, to);
   const busiest = window.reduce((max, date) => Math.max(max, days[date]?.activeSeconds ?? 0), 0);
-  return window.map((date) => {
+  const cells = window.map((date) => {
     const seconds = days[date]?.activeSeconds ?? 0;
     return { date, seconds, level: heatLevel(seconds, busiest) };
   });
+  return { cells, busiest, thresholds: [busiest * 0.25, busiest * 0.5, busiest * 0.75] };
 }
 
 export interface Slice {

@@ -20,10 +20,20 @@ test("any time on a day with no busiest reference still shows as level 1", () =>
   assert.equal(heatLevel(10, 0), 1);
 });
 
+test("the heat scale is returned so the legend can name real durations", () => {
+  const grid = heatmap(
+    { "2026-08-02": dayWith("2026-08-02", [{ seconds: 4 * 3600, hour: 9 }]) },
+    "2026-08-01",
+    "2026-08-03"
+  );
+  assert.equal(grid.busiest, 4 * 3600);
+  assert.deepEqual(grid.thresholds, [3600, 2 * 3600, 3 * 3600]);
+});
+
 test("the heatmap covers every day in the window including empty ones", () => {
-  const cells = heatmap({ "2026-08-02": dayWith("2026-08-02", [{ seconds: 60, hour: 9 }]) }, "2026-08-01", "2026-08-03");
-  assert.deepEqual(cells.map((cell) => cell.date), ["2026-08-01", "2026-08-02", "2026-08-03"]);
-  assert.deepEqual(cells.map((cell) => cell.level), [0, 4, 0]);
+  const grid = heatmap({ "2026-08-02": dayWith("2026-08-02", [{ seconds: 60, hour: 9 }]) }, "2026-08-01", "2026-08-03");
+  assert.deepEqual(grid.cells.map((cell) => cell.date), ["2026-08-01", "2026-08-02", "2026-08-03"]);
+  assert.deepEqual(grid.cells.map((cell) => cell.level), [0, 4, 0]);
 });
 
 test("totals sum languages, hours, signals and repositories across days", () => {

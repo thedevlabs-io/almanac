@@ -31,6 +31,44 @@
 
 ## Log
 
+### 2026-08-20 (heatmap)
+
+- `src/ui/style.ts` - `--heat-0` was `var(--vscode-editorWidget-background)`,
+  which is the exact value `.card` paints behind it, so every day with no
+  activity rendered invisible and a year of work read as a few floating blobs.
+  Now a tint of `--vscode-foreground`, which stays visible in light, dark and
+  high contrast without picking a literal colour.
+
+- `src/core/dashboardModel.ts`, `src/ui/style.ts` - month labels collided. The
+  row was a flex of one 12px span per week while a month name needs about 22px,
+  so `Jul` and `Aug` printed over each other and read as `JulAug`. The row is
+  now a grid sharing the calendar's column template, each label placed with
+  `grid-column: <col> / span <n>` through `DynamicStyles`, and a month with
+  fewer than `MIN_LABEL_COLUMNS` is dropped rather than squeezed. `#decision`
+
+- `src/core/dashboardModel.ts` - added a weekday gutter, and padded the trailing
+  column to seven cells so rows stay aligned with it. Only alternate rows are
+  labelled; seven labels at a 13px row height is unreadable text down the side.
+
+- `src/core/aggregate.ts` - `heatmap` returns the scale it cut against, not just
+  the cells. A legend reading "Less to More" says nothing, and levels are
+  relative to the busiest day in the window, so the same shade means different
+  things in different windows. The legend is the only place that can say so, and
+  it needed the thresholds to do it. `#breaking`
+
+- `src/core/dashboardModel.ts` - the week window shows day rows rather than the
+  grid. Seven squares in one column has no shape to read and no way to tell
+  Tuesday from Thursday. Each row names the day, its duration, and the stretch
+  of the day the work fell in, derived from the hour buckets rather than stored:
+  Almanac keeps totals, not a timeline, so this is the span that had activity
+  and not a claim the whole span was worked. `#decision`
+
+- `test/heatmap.test.ts` - added. Asserts the three reported bugs specifically:
+  no two month labels can overlap at any window, `--heat-0` is not the card
+  colour, and every column is seven rows tall with each cell in the row its
+  weekday claims. All three shipped with a full green suite, because nothing was
+  testing the rendered geometry.
+
 ### 2026-08-20 (design system)
 
 - `design-system/` - added as a git submodule, matching how the website,

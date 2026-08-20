@@ -84,6 +84,20 @@ or any record of when you pressed a key. A day is a total, not a timeline.
 - **Almanac: Export my data to JSON** gives you the whole file.
 - **Almanac: Delete all tracked data** destroys it.
 
+## Reading the dashboard
+
+**Week** shows a row per day: the day's name, how long you worked, and the
+stretch of the day it fell in. Every day appears, including the empty ones.
+
+**Month, quarter and year** show the calendar grid, with weekday labels down the
+side and month labels across the top. Levels are cut against the busiest day in
+the window rather than a fixed number of hours, so a part-time week and a
+full-time week both have shape. The legend names what each shade is worth in
+hours, and it changes when you change the window.
+
+The punchcard below is the same time folded into 24 hours, so it answers when
+you work rather than how much.
+
 ## Branding
 
 Almanac's panels use [The Dev Labs design system](https://github.com/thedevlabs-io/design-system),

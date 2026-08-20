@@ -64,10 +64,10 @@ export function sharedStyles(fonts: BrandFonts, theme: BrandTheme): string {
   --font-display: ${BRAND.fontDisplay};
   --font-mono: ${BRAND.fontMono};
 
-  /* The heat ramp is the brand orange stepped down against the panel surface,
-     so an empty day reads as the editor's own background rather than as a
-     colour we picked. */
-  --heat-0: var(--vscode-editorWidget-background);
+  --cell: 13px;
+  --cell-gap: 3px;
+
+  --heat-0: color-mix(in srgb, var(--vscode-foreground) 11%, transparent);
   --heat-1: color-mix(in srgb, var(--brand-accent) 22%, transparent);
   --heat-2: color-mix(in srgb, var(--brand-accent) 44%, transparent);
   --heat-3: color-mix(in srgb, var(--brand-accent) 68%, transparent);
@@ -161,30 +161,81 @@ button:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-off
 
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.heatmap { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 4px; }
-.heat-week { display: grid; grid-template-rows: repeat(7, 12px); gap: 3px; }
-.heat-cell { width: 12px; height: 12px; border-radius: 2px; background: var(--heat-0); }
+.heat-layout { display: flex; gap: 6px; align-items: flex-start; }
+
+/* The gutter sits outside the scroll area so weekday names stay put while a
+   year of columns scrolls under them. */
+.heat-gutter {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  gap: var(--cell-gap);
+  padding-top: calc(1.3em + 4px);
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  color: var(--vscode-descriptionForeground);
+}
+.heat-gutter span { line-height: var(--cell); text-align: right; min-width: 1.8em; }
+
+.heat-scroll { overflow-x: auto; padding-bottom: 4px; min-width: 0; }
+.heatmap { display: flex; gap: var(--cell-gap); }
+.heat-week { display: grid; grid-template-rows: repeat(7, var(--cell)); gap: var(--cell-gap); }
+.heat-cell {
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 2px;
+  background: var(--heat-0);
+}
 .heat-cell[data-level="1"] { background: var(--heat-1); }
 .heat-cell[data-level="2"] { background: var(--heat-2); }
 .heat-cell[data-level="3"] { background: var(--heat-3); }
 .heat-cell[data-level="4"] { background: var(--heat-4); }
-.heat-months { display: flex; gap: 3px; margin-bottom: 4px; height: 1.2em; }
-.heat-months span {
+/* Padding for the days after today in the final column: present so the rows
+   stay aligned with the gutter, drawn as nothing. */
+.heat-cell.filler { background: transparent; }
+
+/* A grid rather than a row of fixed-width spans. Each label is given the
+   columns up to the next month, so "Jul" and "Aug" can no longer print on top
+   of each other and read as "JulAug". */
+.heat-months {
+  display: grid;
+  gap: var(--cell-gap);
+  margin-bottom: 4px;
+  height: 1.3em;
   font-family: var(--font-mono);
   font-size: 0.7em;
   color: var(--vscode-descriptionForeground);
-  width: 12px;
-  white-space: nowrap;
 }
+.heat-months span { white-space: nowrap; }
+
 .legend {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: ${BRAND.space.sm};
+  flex-wrap: wrap;
   justify-content: flex-end;
-  margin-top: ${BRAND.space.xs};
+  margin-top: ${BRAND.space.sm};
   font-family: var(--font-mono);
-  font-size: 0.75em;
+  font-size: 0.72em;
   color: var(--vscode-descriptionForeground);
+}
+.legend-stop { display: inline-flex; align-items: center; gap: 5px; }
+
+.day-rows { display: grid; gap: 6px; }
+.day-row {
+  display: grid;
+  grid-template-columns: 5.5em 1fr auto 8.5em;
+  gap: 10px;
+  align-items: center;
+  padding: 3px 0;
+}
+.day-row.today .day-name { color: var(--brand-accent-text); }
+.day-name { font-size: 0.85em; }
+.day-time { min-width: 4em; text-align: right; }
+.day-hours { text-align: right; font-size: 0.72em; }
+
+@media (max-width: 560px) {
+  .day-row { grid-template-columns: 5.5em 1fr auto; }
+  .day-hours { display: none; }
 }
 
 .bars { display: grid; gap: ${BRAND.space.xs}; }
