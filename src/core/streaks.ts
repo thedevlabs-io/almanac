@@ -1,70 +1,87 @@
-// ABOUTME: Streak arithmetic over a set of qualifying days — current, longest, and per-language.
-// ABOUTME: Pure and calendar-aware; a gap of one day breaks a streak, however busy the days around it.
+import { daysBetween, shift, type DayKey } from "./day";
+import type { DayRecord } from "./types";
 
-import { addDays, daysBetween } from "./day";
-import type { DayKey } from "./types";
+export const DEFAULT_MIN_MINUTES = 5;
 
-export interface Streak {
-  /** Days running up to today (or yesterday, if today hasn't qualified yet). */
+export function qualifies(record: DayRecord | undefined, minMinutes: number): boolean {
+  return (record?.activeSeconds ?? 0) >= minMinutes * 60;
+}
+
+/** The days that count towards a streak, ascending. */
+export function qualifyingDays(
+  days: Record<DayKey, DayRecord>,
+  minMinutes = DEFAULT_MIN_MINUTES
+): DayKey[] {
+  return Object.keys(days)
+    .filter((date) => qualifies(days[date], minMinutes))
+    .sort();
+}
+
+export interface Streaks {
   current: number;
   longest: number;
-  /** First and last day of the longest run, for the dashboard to label it. */
-  longestFrom?: DayKey;
-  longestTo?: DayKey;
-  /** True when today itself qualifies, so the UI can say "today counts". */
-  todayCounts: boolean;
+  /** The last day that counted, so the UI can say when the streak will lapse. */
+  lastQualifying?: DayKey;
 }
 
 /**
- * A streak is unbroken calendar days. `today` is passed in rather than read from
- * the clock so this stays pure and testable.
- *
- * Today not qualifying *yet* does not break the streak — you may still be about
- * to work. The run is measured from yesterday in that case, which is what every
- * streak tracker means by "you're on a 6-day streak" at 9am.
+ * Today not being worked yet does not break a streak. Yesterday still counts as
+ * current until midnight passes without a qualifying day, which is how anyone
+ * would describe their own streak at nine in the morning.
  */
-export function streakOf(qualifying: Iterable<DayKey>, today: DayKey): Streak {
-  const days = [...new Set(qualifying)].sort();
-  if (days.length === 0) {
-    return { current: 0, longest: 0, todayCounts: false };
+export function streaks(
+  days: Record<DayKey, DayRecord>,
+  today: DayKey,
+  minMinutes = DEFAULT_MIN_MINUTES
+): Streaks {
+  const qualifying = qualifyingDays(days, minMinutes);
+  if (qualifying.length === 0) {
+    return { current: 0, longest: 0 };
   }
 
   let longest = 1;
-  let longestFrom = days[0];
-  let longestTo = days[0];
-  let runStart = days[0];
   let run = 1;
-
-  for (let i = 1; i < days.length; i++) {
-    if (daysBetween(days[i - 1], days[i]) === 1) {
-      run++;
-    } else {
-      run = 1;
-      runStart = days[i];
-    }
-    if (run > longest) {
-      longest = run;
-      longestFrom = runStart;
-      longestTo = days[i];
-    }
+  for (let i = 1; i < qualifying.length; i += 1) {
+    const previous = qualifying[i - 1] as DayKey;
+    const day = qualifying[i] as DayKey;
+    run = daysBetween(previous, day) === 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
   }
 
-  const set = new Set(days);
-  const todayCounts = set.has(today);
-  let current = 0;
-  let cursor = todayCounts ? today : addDays(today, -1);
-  while (set.has(cursor)) {
-    current++;
-    cursor = addDays(cursor, -1);
-  }
+  const last = qualifying[qualifying.length - 1] as DayKey;
+  const gap = daysBetween(last, today);
+  const current = gap === 0 || gap === 1 ? trailingRun(qualifying) : 0;
 
-  return { current, longest, longestFrom, longestTo, todayCounts };
+  return { current, longest, lastQualifying: last };
 }
 
-/** Days meeting the "this day counts" bar, used to feed `streakOf`. */
-export function qualifyingDays(
-  records: { date: DayKey; activeSeconds: number }[],
-  minSeconds: number
-): DayKey[] {
-  return records.filter((r) => r.activeSeconds >= minSeconds).map((r) => r.date);
+function trailingRun(qualifying: DayKey[]): number {
+  let run = 1;
+  for (let i = qualifying.length - 1; i > 0; i -= 1) {
+    if (daysBetween(qualifying[i - 1] as DayKey, qualifying[i] as DayKey) !== 1) {
+      break;
+    }
+    run += 1;
+  }
+  return run;
+}
+
+/** Whether today still needs work to keep the streak alive, and how much. */
+export function secondsToKeepStreak(
+  days: Record<DayKey, DayRecord>,
+  today: DayKey,
+  minMinutes = DEFAULT_MIN_MINUTES
+): number {
+  const done = days[today]?.activeSeconds ?? 0;
+  return Math.max(0, minMinutes * 60 - done);
+}
+
+/** Whether a streak lapses at midnight unless today gets some work. */
+export function atRisk(
+  days: Record<DayKey, DayRecord>,
+  today: DayKey,
+  minMinutes = DEFAULT_MIN_MINUTES
+): boolean {
+  const { current } = streaks(days, today, minMinutes);
+  return current > 0 && !qualifies(days[today], minMinutes) && qualifies(days[shift(today, -1)], minMinutes);
 }

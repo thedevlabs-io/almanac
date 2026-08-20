@@ -1,120 +1,118 @@
-// ABOUTME: Tests for the rollups behind the dashboard — heat levels, language stats, punchcard.
-// ABOUTME: Run with `npm test`.
-
+import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import assert from "node:assert/strict";
-import { languageHeatmap, levelsFor, summarize } from "../src/core/aggregate";
+import { averageActiveDay, heatLevel, heatmap, punchcard, repositories, signalSplit, topLanguages, totalsFor } from "../src/core/aggregate";
+import { applyTick } from "../src/core/record";
 import { emptyDay, type DayRecord } from "../src/core/types";
-import { applyTick, bump } from "../src/core/record";
 
-function day(date: string, seconds: number, language = "typescript", project = "almanac"): DayRecord {
-  return applyTick(emptyDay(date), { seconds, hour: 10, language, project });
+function dayWith(date: string, ticks: Parameters<typeof applyTick>[1][]): DayRecord {
+  return ticks.reduce((record, tick) => applyTick(record, tick), emptyDay(date));
 }
 
-function db(records: DayRecord[]): Record<string, DayRecord> {
-  return Object.fromEntries(records.map((r) => [r.date, r]));
-}
-
-const OPTIONS = { today: "2026-08-07", minSeconds: 300, heatmapDays: 7 };
-
-test("an empty database summarises to zeroes rather than throwing", () => {
-  const summary = summarize({}, OPTIONS);
-  assert.equal(summary.total, 0);
-  assert.equal(summary.streak.current, 0);
-  assert.deepEqual(summary.languages, []);
-  assert.equal(summary.heatmap.length, 7);
-  assert.equal(summary.heatmap.every((c) => c.level === 0), true);
+test("heat levels are cut against the busiest day, not a fixed scale", () => {
+  assert.equal(heatLevel(0, 1000), 0);
+  assert.equal(heatLevel(250, 1000), 1);
+  assert.equal(heatLevel(500, 1000), 2);
+  assert.equal(heatLevel(750, 1000), 3);
+  assert.equal(heatLevel(1000, 1000), 4);
 });
 
-test("today, week and month windows count the right days", () => {
-  const summary = summarize(
-    db([
-      day("2026-08-07", 3600),
-      day("2026-08-03", 1800),
-      day("2026-07-20", 900),
-      day("2026-05-01", 600),
+test("any time on a day with no busiest reference still shows as level 1", () => {
+  assert.equal(heatLevel(10, 0), 1);
+});
+
+test("the heatmap covers every day in the window including empty ones", () => {
+  const cells = heatmap({ "2026-08-02": dayWith("2026-08-02", [{ seconds: 60, hour: 9 }]) }, "2026-08-01", "2026-08-03");
+  assert.deepEqual(cells.map((cell) => cell.date), ["2026-08-01", "2026-08-02", "2026-08-03"]);
+  assert.deepEqual(cells.map((cell) => cell.level), [0, 4, 0]);
+});
+
+test("totals sum languages, hours, signals and repositories across days", () => {
+  const days = {
+    "2026-08-01": dayWith("2026-08-01", [
+      { seconds: 100, hour: 9, language: "typescript", kind: "editor", project: { repo: "acme", folder: "apps/web" } },
+      { seconds: 200, hour: 9, language: "typescript", kind: "terminal", project: { repo: "acme", folder: "." } },
     ]),
-    OPTIONS
-  );
-  assert.equal(summary.today, 3600);
-  assert.equal(summary.week, 5400);
-  assert.equal(summary.month, 6300);
-  assert.equal(summary.total, 6900);
+    "2026-08-02": dayWith("2026-08-02", [
+      { seconds: 50, hour: 14, language: "python", kind: "terminal", project: { repo: "notes", folder: "." } },
+    ]),
+  };
+
+  const totals = totalsFor(days, "2026-08-01", "2026-08-02");
+  assert.equal(totals.seconds, 350);
+  assert.equal(totals.activeDays, 2);
+  assert.deepEqual(totals.languages, { typescript: 300, python: 50 });
+  assert.deepEqual(totals.signals, { editor: 100, terminal: 250 });
+  assert.equal(totals.hours[9], 300);
+  assert.equal(totals.hours[14], 50);
+  assert.equal(totals.projects.acme?.seconds, 300);
+  assert.deepEqual(totals.projects.acme?.folders, { "apps/web": 100, ".": 200 });
 });
 
-test("the heatmap covers exactly the requested window, ending today", () => {
-  const summary = summarize(db([day("2026-08-07", 60)]), OPTIONS);
-  assert.equal(summary.heatmap[0].date, "2026-08-01");
-  assert.equal(summary.heatmap[6].date, "2026-08-07");
+test("the signal split shows where a terminal-heavy day actually went", () => {
+  const days = {
+    "2026-08-01": dayWith("2026-08-01", [
+      { seconds: 100, hour: 9, kind: "editor" },
+      { seconds: 900, hour: 9, kind: "terminal" },
+    ]),
+  };
+  const split = signalSplit(totalsFor(days, "2026-08-01", "2026-08-01"));
+  assert.equal(split[0]?.key, "terminal");
+  assert.equal(split[0]?.seconds, 900);
+  assert.equal(Math.round((split[0]?.share ?? 0) * 100), 90);
 });
 
-test("heat levels are relative to how much you actually work", () => {
-  const level = levelsFor([600, 1200, 1800, 2400]);
-  assert.equal(level(0), 0);
-  assert.equal(level(600), 1);
-  assert.equal(level(2400), 4);
-  // A light user's busiest day is still level 4.
-  const lighter = levelsFor([60, 120]);
-  assert.equal(lighter(120), 4);
+test("languages are ranked and limited", () => {
+  const days = {
+    "2026-08-01": dayWith("2026-08-01", [
+      { seconds: 10, hour: 9, language: "css" },
+      { seconds: 90, hour: 9, language: "typescript" },
+    ]),
+  };
+  const ranked = topLanguages(totalsFor(days, "2026-08-01", "2026-08-01"), 1);
+  assert.equal(ranked.length, 1);
+  assert.equal(ranked[0]?.key, "typescript");
 });
 
-test("languages are ranked by time, with display names", () => {
-  const mixed = applyTick(day("2026-08-07", 600, "python"), {
-    seconds: 7200,
-    hour: 11,
-    language: "rust",
-  });
-  const summary = summarize(db([day("2026-08-06", 3600, "rust"), mixed]), OPTIONS);
-  assert.deepEqual(
-    summary.languages.map((l) => l.id),
-    ["rust", "python"]
-  );
-  assert.equal(summary.languages[0].seconds, 10800);
-  assert.equal(summary.languages[1].name, "Python");
+test("repositories come back as trees, busiest first", () => {
+  const days = {
+    "2026-08-01": dayWith("2026-08-01", [
+      { seconds: 10, hour: 9, project: { repo: "small", folder: "." } },
+      { seconds: 90, hour: 9, project: { repo: "big", folder: "apps/web" } },
+    ]),
+  };
+  const trees = repositories(totalsFor(days, "2026-08-01", "2026-08-01"));
+  assert.deepEqual(trees.map((tree) => tree.repo), ["big", "small"]);
+  assert.equal(trees[0]?.children[0]?.name, "apps");
 });
 
-test("a language's streak uses the same bar as the day streak", () => {
-  const summary = summarize(
-    db([day("2026-08-05", 3600, "go"), day("2026-08-06", 60, "go"), day("2026-08-07", 3600, "go")]),
-    OPTIONS
-  );
-  const go = summary.languages.find((l) => l.id === "go");
-  assert.ok(go);
-  // 2026-08-06 was only a minute, so it doesn't hold the streak together.
-  assert.equal(go.streak.current, 1);
-  assert.equal(go.days, 2);
+test("the punchcard names the busiest hour, and none when there is no work", () => {
+  const days = {
+    "2026-08-01": dayWith("2026-08-01", [
+      { seconds: 100, hour: 9 },
+      { seconds: 300, hour: 22 },
+    ]),
+  };
+  assert.equal(punchcard(totalsFor(days, "2026-08-01", "2026-08-01")).peakHour, 22);
+  assert.equal(punchcard(totalsFor({}, "2026-08-01", "2026-08-01")).peakHour, undefined);
 });
 
-test("the punchcard buckets by weekday and hour", () => {
-  // 2026-08-07 is a Friday (weekday 5).
-  const summary = summarize(db([day("2026-08-07", 1800)]), OPTIONS);
-  assert.equal(summary.punchcard[5][10], 1800);
-  assert.equal(summary.punchcard[4][10], 0);
+test("the average active day ignores days with nothing on them", () => {
+  const days = {
+    "2026-08-01": dayWith("2026-08-01", [{ seconds: 100, hour: 9 }]),
+    "2026-08-03": dayWith("2026-08-03", [{ seconds: 300, hour: 9 }]),
+  };
+  assert.equal(averageActiveDay(totalsFor(days, "2026-08-01", "2026-08-05")), 200);
+  assert.equal(averageActiveDay(totalsFor({}, "2026-08-01", "2026-08-05")), 0);
 });
 
-test("counters and commits roll up across days", () => {
-  const a = bump(bump(day("2026-08-06", 600), "edits", 10), "saves", 2);
-  const b = { ...day("2026-08-07", 600), commits: 3 };
-  const summary = summarize(db([a, b]), OPTIONS);
-  assert.equal(summary.totals.edits, 10);
-  assert.equal(summary.totals.saves, 2);
-  assert.equal(summary.totals.commits, 3);
-  assert.deepEqual(summary.commitsByDay, { "2026-08-07": 3 });
+test("an out of range hour is clamped rather than dropped", () => {
+  const record = applyTick(emptyDay("2026-08-01"), { seconds: 10, hour: 99 });
+  assert.equal(record.hours[23], 10);
+  assert.equal(record.activeSeconds, 10);
 });
 
-test("the best day ignores days with no activity", () => {
-  const summary = summarize(db([day("2026-08-05", 0), day("2026-08-06", 1200)]), OPTIONS);
-  assert.deepEqual(summary.best, { date: "2026-08-06", seconds: 1200 });
-});
-
-test("a language heatmap covers the window even where the language is absent", () => {
-  const cells = languageHeatmap(
-    db([day("2026-08-07", 600, "css")]),
-    "css",
-    "2026-08-05",
-    "2026-08-07"
-  );
-  assert.equal(cells.length, 3);
-  assert.equal(cells[0].seconds, 0);
-  assert.equal(cells[2].seconds, 600);
+test("a zero or negative tick changes nothing", () => {
+  const base = emptyDay("2026-08-01");
+  assert.equal(applyTick(base, { seconds: 0, hour: 9 }), base);
+  assert.equal(applyTick(base, { seconds: -5, hour: 9 }), base);
 });

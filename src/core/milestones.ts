@@ -1,94 +1,61 @@
-// ABOUTME: Milestones derived from the summary — reached ones, and the next one in each track.
-// ABOUTME: A quiet list on the dashboard; nothing here ever interrupts you with a popup.
-
-import { duration, languageName, plural } from "./format";
-import type { Summary } from "./aggregate";
+import { duration, plural } from "./format";
 
 export interface Milestone {
   id: string;
   label: string;
-  /** What it took, once reached. Empty while it's still ahead. */
-  detail: string;
-  reached: boolean;
-  /** 0–1 towards the target, for the progress bar on unreached ones. */
+  /** What has been achieved so far, in the track's own unit. */
+  value: number;
+  /** The next threshold, or undefined once every threshold is passed. */
+  next?: number;
+  /** The threshold most recently passed. */
+  reached?: number;
+  /** 0 to 1 towards `next`, measured from `reached`. */
   progress: number;
+  describe(value: number): string;
 }
 
-const STREAK_STEPS = [3, 7, 14, 30, 100, 365];
-const HOUR_STEPS = [1, 10, 50, 100, 500, 1000];
-const LANGUAGE_HOUR_STEPS = [10, 50, 100, 500];
-const DAY_STEPS = [10, 50, 100, 365];
+const HOUR_THRESHOLDS = [1, 10, 50, 100, 250, 500, 1000, 2500, 5000];
+const STREAK_THRESHOLDS = [3, 7, 14, 30, 60, 100, 200, 365, 500, 1000];
+const DAY_THRESHOLDS = [1, 10, 50, 100, 250, 500, 1000];
 
 function track(
-  prefix: string,
-  steps: number[],
+  id: string,
+  label: string,
   value: number,
-  label: (step: number) => string,
-  detail: (step: number) => string
-): Milestone[] {
-  const out: Milestone[] = [];
-  for (const step of steps) {
-    const reached = value >= step;
-    out.push({
-      id: `${prefix}-${step}`,
-      label: label(step),
-      detail: reached ? detail(step) : "",
-      reached,
-      progress: Math.min(value / step, 1),
-    });
-    // Show what's reached plus the next one, not the whole ladder.
-    if (!reached) {
-      break;
-    }
-  }
-  return out;
+  thresholds: number[],
+  describe: (value: number) => string
+): Milestone {
+  const reached = [...thresholds].reverse().find((threshold) => value >= threshold);
+  const next = thresholds.find((threshold) => value < threshold);
+  const floor = reached ?? 0;
+  const progress = next === undefined ? 1 : clamp((value - floor) / (next - floor));
+  return { id, label, value, next, reached, progress, describe };
 }
 
-export function milestonesFor(summary: Summary): Milestone[] {
-  const hours = summary.total / 3600;
-  const top = summary.languages[0];
+function clamp(value: number): number {
+  return Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : 0;
+}
 
-  const milestones: Milestone[] = [
-    ...track(
-      "streak",
-      STREAK_STEPS,
-      summary.streak.longest,
-      (step) => `${step}-day streak`,
-      (step) => `Longest run: ${plural(summary.streak.longest, "day")} (target ${step})`
-    ),
-    ...track(
+export interface MilestoneInput {
+  totalSeconds: number;
+  longestStreak: number;
+  activeDays: number;
+}
+
+export function milestones(input: MilestoneInput): Milestone[] {
+  return [
+    track(
       "hours",
-      HOUR_STEPS,
-      hours,
-      (step) => `${step} ${step === 1 ? "hour" : "hours"} tracked`,
-      () => duration(summary.total)
+      "Hours tracked",
+      Math.floor(input.totalSeconds / 3600),
+      HOUR_THRESHOLDS,
+      (value) => duration(value * 3600)
     ),
-    ...track(
-      "days",
-      DAY_STEPS,
-      summary.daysQualifying,
-      (step) => `${step} days of work`,
-      () => plural(summary.daysQualifying, "day")
+    track("streak", "Longest streak", input.longestStreak, STREAK_THRESHOLDS, (value) =>
+      plural(value, "day")
+    ),
+    track("days", "Days active", input.activeDays, DAY_THRESHOLDS, (value) =>
+      plural(value, "day")
     ),
   ];
-
-  if (top) {
-    milestones.push(
-      ...track(
-        `lang-${top.id}`,
-        LANGUAGE_HOUR_STEPS,
-        top.seconds / 3600,
-        (step) => `${step} hours in ${languageName(top.id)}`,
-        () => duration(top.seconds)
-      )
-    );
-  }
-
-  // Reached first, then the one you're closest to finishing.
-  return milestones.sort((a, b) => {
-    if (a.reached !== b.reached) {
-      return a.reached ? -1 : 1;
-    }
-    return b.progress - a.progress;
-  });
 }

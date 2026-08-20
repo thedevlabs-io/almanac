@@ -1,30 +1,27 @@
-// ABOUTME: ESLint flat config for the extension source. Type-aware rules over src/.
-// ABOUTME: dist/ is generated and node_modules/ is vendored, so both are ignored.
-
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "node_modules/**", "*.vsix"] },
+  { ignores: ["dist/**", "out/**", "node_modules/**", "media/**"] },
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.ts", "test/**/*.ts"],
-    extends: tseslint.configs.recommendedTypeChecked,
+    // The smoke harness is a plain Node script, not extension code: it needs
+    // Node globals and it reports its results by printing them.
+    files: ["scripts/**/*.mjs"],
     languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      globals: { console: "readonly", process: "readonly", setTimeout: "readonly" }
     },
-    rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
-      eqeqeq: ["error", "smart"],
-      "no-console": ["error", { allow: ["error", "warn"] }],
-    },
+    rules: { "no-console": "off", curly: "off" }
   },
   {
-    // node:test's `test()` returns a promise the runner owns.
-    files: ["test/**/*.test.ts"],
-    rules: { "@typescript-eslint/no-floating-promises": "off" },
+    files: ["src/**/*.ts", "test/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
+      eqeqeq: ["error", "always"],
+      "no-console": ["error", { allow: ["error"] }],
+      curly: "error"
+    }
   }
 );

@@ -1,239 +1,251 @@
-// ABOUTME: Turns raw records into the exact view model the dashboard renders — labels included.
-// ABOUTME: Pure, so what appears on screen is pinned by tests rather than assembled in the webview.
+import {
+  averageActiveDay,
+  heatmap,
+  punchcard,
+  repositories,
+  signalSplit,
+  topLanguages,
+  totalsFor,
+  type HeatCell,
+  type Punchcard,
+  type Slice,
+} from "./aggregate";
+import { typedShare, type Composition } from "./composition";
+import { daysBetween, keyOf, shift, weekdayOf, type DayKey } from "./day";
+import { duration, languageName, relativeDays } from "./format";
+import { milestones, type Milestone } from "./milestones";
+import type { RepoTree } from "./project";
+import { streaks, secondsToKeepStreak, atRisk, type Streaks } from "./streaks";
+import type { DayRecord } from "./types";
 
-import { addDays, monthName, weekday } from "./day";
-import { duration, languageName, plural } from "./format";
-import { languageHeatmap, summarize, type HeatCell, type Summary } from "./aggregate";
-import { milestonesFor, type Milestone } from "./milestones";
-import type { DayKey, DayRecord } from "./types";
-import { dayDetail, type ClientMap, type DayDetail } from "./report";
+export type WindowName = "week" | "month" | "quarter" | "year";
 
-export interface HeatColumn {
-  /** Month label above this column, when the month changes here. */
-  month?: string;
-  cells: (HeatCell | null)[];
+const WINDOW_DAYS: Record<WindowName, number> = {
+  week: 6,
+  month: 29,
+  quarter: 89,
+  year: 364,
+};
+
+export function windowRange(name: WindowName, today: DayKey): { from: DayKey; to: DayKey } {
+  return { from: shift(today, -(WINDOW_DAYS[name] ?? 364)), to: today };
 }
 
-export interface LanguageView {
-  id: string;
-  name: string;
-  seconds: number;
+export interface HeatWeek {
+  cells: (HeatCell & { label: string })[];
+}
+
+export interface LabelledSlice extends Slice {
   label: string;
+  text: string;
+}
+
+export interface FolderRow {
+  /** Indent level, 0 for a repository's immediate children. */
+  depth: number;
+  name: string;
+  path: string;
+  /** Seconds with this folder open, formatted. Empty when the folder was never opened directly. */
+  own: string;
+  total: string;
+  /** Share of the repository's total, 0 to 1, for the bar. */
   share: number;
-  days: number;
-  streak: number;
-  longest: number;
-  heatmap: HeatCell[];
+}
+
+export interface RepoRow {
+  repo: string;
+  total: string;
+  totalSeconds: number;
+  share: number;
+  /** Seconds recorded at the repository root, formatted. Empty when none. */
+  rootTime: string;
+  folders: FolderRow[];
 }
 
 export interface DashboardModel {
-  headline: {
-    streak: string;
-    streakNote: string;
-    today: string;
-    week: string;
-    total: string;
-    longest: string;
-  };
-  columns: HeatColumn[];
-  legendLabels: [string, string];
-  languages: LanguageView[];
-  projects: { name: string; label: string; days: string; share: number }[];
-  punchcard: { rows: { label: string; cells: { level: number; seconds: number; hour: number }[] }[]; busiest: string };
-  milestones: Milestone[];
-  facts: { label: string; value: string }[];
-  commits: { total: number; byDay: Record<DayKey, number> };
-  composition: {
-    typed: number;
-    inserted: number;
-    typedShare: number;
-    insertedShare: number;
-    summary: string;
-    known: boolean;
-  };
-  assistants: string[];
-  /** Only days with activity, for the click-through under the heatmap. */
-  details: Record<DayKey, DayDetail>;
+  today: DayKey;
+  window: WindowName;
+  from: DayKey;
+  to: DayKey;
+  todayTime: string;
+  windowTime: string;
+  averageDay: string;
+  activeDays: number;
+  streak: Streaks;
+  streakAtRisk: boolean;
+  streakNeeds: string;
+  weeks: HeatWeek[];
+  monthLabels: { index: number; label: string }[];
+  languages: LabelledSlice[];
+  signals: LabelledSlice[];
+  repositories: RepoRow[];
+  punchcard: Punchcard;
+  peakHourLabel: string;
+  milestones: (Milestone & { valueText: string; nextText: string })[];
+  composition: Composition;
+  typedPercent: number;
+  counts: { edits: number; saves: number; files: number; sessions: number; commits: number };
   empty: boolean;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-/** Lay the heatmap out in week columns, GitHub-style, padded to whole weeks. */
-export function columnsFor(cells: HeatCell[]): HeatColumn[] {
-  if (cells.length === 0) {
-    return [];
-  }
-  const columns: HeatColumn[] = [];
-  let current: (HeatCell | null)[] = new Array<HeatCell | null>(weekday(cells[0].date)).fill(null);
-  let lastMonth = "";
-
-  for (const cell of cells) {
-    current.push(cell);
-    if (current.length === 7) {
-      const first = current.find((c): c is HeatCell => c !== null);
-      const month = first ? monthName(first.date) : "";
-      columns.push({ month: month !== lastMonth ? month : undefined, cells: current });
-      if (month !== lastMonth) {
-        lastMonth = month;
-      }
-      current = [];
-    }
-  }
-  if (current.length > 0) {
-    while (current.length < 7) {
-      current.push(null);
-    }
-    columns.push({ cells: current });
-  }
-  return columns;
-}
-
-function punchcardView(summary: Summary): DashboardModel["punchcard"] {
-  const flat = summary.punchcard.flat();
-  const peak = Math.max(...flat, 0);
-  const level = (seconds: number): number => {
-    if (seconds <= 0 || peak <= 0) {
-      return 0;
-    }
-    return Math.min(4, Math.max(1, Math.ceil((seconds / peak) * 4)));
-  };
-
-  let busiest = "—";
-  if (peak > 0) {
-    let bestDay = 0;
-    let bestHour = 0;
-    summary.punchcard.forEach((row, day) =>
-      row.forEach((seconds, hour) => {
-        if (seconds === peak) {
-          bestDay = day;
-          bestHour = hour;
-        }
-      })
-    );
-    busiest = `${WEEKDAYS[bestDay]} around ${bestHour}:00`;
-  }
-
-  return {
-    rows: summary.punchcard.map((row, day) => ({
-      label: WEEKDAYS[day],
-      cells: row.map((seconds, hour) => ({ seconds, hour, level: level(seconds) })),
-    })),
-    busiest,
-  };
-}
+const SIGNAL_LABELS: Record<string, string> = {
+  editor: "Editor",
+  terminal: "Terminal",
+  debug: "Debugging",
+  task: "Tasks",
+  notebook: "Notebooks",
+  tabs: "Tabs and panels",
+  window: "Window",
+};
 
 export interface ModelOptions {
-  today: DayKey;
-  minSeconds: number;
-  heatmapDays: number;
-  /** Names of AI assistants installed, shown as context beside the split. */
-  assistants?: string[];
-  clients?: ClientMap;
+  window?: WindowName;
+  today?: DayKey;
+  minStreakMinutes?: number;
 }
 
-function compositionView(summary: Summary): DashboardModel["composition"] {
-  const { typedChars, insertedChars } = summary.composition;
-  const share = summary.insertedShare;
-  if (share === undefined) {
-    return {
-      typed: 0,
-      inserted: 0,
-      typedShare: 0,
-      insertedShare: 0,
-      summary: "Nothing written yet",
-      known: false,
-    };
-  }
-  const percent = Math.round(share * 100);
-  return {
-    typed: typedChars,
-    inserted: insertedChars,
-    typedShare: 1 - share,
-    insertedShare: share,
-    summary: `${percent}% of what you wrote arrived in blocks`,
-    known: true,
-  };
-}
-
-function detailsFor(
+export function buildDashboard(
   days: Record<DayKey, DayRecord>,
-  dates: DayKey[],
-  clients: ClientMap
-): Record<DayKey, DayDetail> {
-  const out: Record<DayKey, DayDetail> = {};
-  for (const date of dates) {
-    const detail = dayDetail(days[date], clients);
-    if (detail) {
-      out[date] = detail;
-    }
-  }
-  return out;
-}
-
-export function buildModel(
-  days: Record<DayKey, DayRecord>,
-  options: ModelOptions
+  options: ModelOptions = {}
 ): DashboardModel {
-  const summary = summarize(days, options);
-  const from = addDays(options.today, -(options.heatmapDays - 1));
-  const totalLanguageSeconds = summary.languages.reduce((a, l) => a + l.seconds, 0) || 1;
-  const totalProjectSeconds = summary.projects.reduce((a, p) => a + p.seconds, 0) || 1;
+  const today = options.today ?? keyOf(new Date());
+  const window = options.window ?? "year";
+  const minMinutes = options.minStreakMinutes ?? 5;
+  const { from, to } = windowRange(window, today);
 
-  const streakNote = summary.streak.current === 0
-    ? summary.daysQualifying === 0
-      ? "Work for a few minutes to start one"
-      : "Broken — today can start a new one"
-    : summary.streak.todayCounts
-      ? "Today counts"
-      : "Today hasn't counted yet";
+  const totals = totalsFor(days, from, to);
+  const cells = heatmap(days, alignToWeek(from), to);
+  const streakInfo = streaks(days, today, minMinutes);
 
   return {
-    headline: {
-      streak: plural(summary.streak.current, "day"),
-      streakNote,
-      today: duration(summary.today),
-      week: duration(summary.week),
-      total: duration(summary.total),
-      longest: plural(summary.streak.longest, "day"),
+    today,
+    window,
+    from,
+    to,
+    todayTime: duration(days[today]?.activeSeconds ?? 0),
+    windowTime: duration(totals.seconds),
+    averageDay: duration(averageActiveDay(totals)),
+    activeDays: totals.activeDays,
+    streak: streakInfo,
+    streakAtRisk: atRisk(days, today, minMinutes),
+    streakNeeds: duration(secondsToKeepStreak(days, today, minMinutes)),
+    weeks: intoWeeks(cells, today),
+    monthLabels: monthLabels(cells),
+    languages: topLanguages(totals).map((slice) => ({
+      ...slice,
+      label: languageName(slice.key),
+      text: duration(slice.seconds),
+    })),
+    signals: signalSplit(totals).map((slice) => ({
+      ...slice,
+      label: SIGNAL_LABELS[slice.key] ?? slice.key,
+      text: duration(slice.seconds),
+    })),
+    repositories: repoRows(repositories(totals)),
+    punchcard: punchcard(totals),
+    peakHourLabel: peakLabel(punchcard(totals).peakHour),
+    milestones: milestones({
+      totalSeconds: totals.seconds,
+      longestStreak: streakInfo.longest,
+      activeDays: totals.activeDays,
+    }).map((milestone) => ({
+      ...milestone,
+      valueText: milestone.describe(milestone.value),
+      nextText: milestone.next === undefined ? "All reached" : milestone.describe(milestone.next),
+    })),
+    composition: totals.composition,
+    typedPercent: Math.round(typedShare(totals.composition) * 100),
+    counts: {
+      edits: totals.edits,
+      saves: totals.saves,
+      files: totals.files,
+      sessions: totals.sessions,
+      commits: totals.commits,
     },
-    columns: columnsFor(summary.heatmap),
-    legendLabels: ["Less", "More"],
-    languages: summary.languages.slice(0, 8).map((language) => ({
-      id: language.id,
-      name: language.name,
-      seconds: language.seconds,
-      label: duration(language.seconds),
-      share: language.seconds / totalLanguageSeconds,
-      days: language.days,
-      streak: language.streak.current,
-      longest: language.streak.longest,
-      heatmap: languageHeatmap(days, language.id, from, options.today),
-    })),
-    projects: summary.projects.slice(0, 8).map((project) => ({
-      name: project.name,
-      label: duration(project.seconds),
-      days: plural(project.days, "day"),
-      share: project.seconds / totalProjectSeconds,
-    })),
-    punchcard: punchcardView(summary),
-    milestones: milestonesFor(summary),
-    facts: [
-      { label: "Days worked", value: plural(summary.daysQualifying, "day") },
-      { label: "Best day", value: summary.best ? `${duration(summary.best.seconds)} · ${summary.best.date}` : "—" },
-      { label: "Sessions", value: String(summary.totals.sessions) },
-      { label: "Files touched", value: String(summary.totals.files) },
-      { label: "Saves", value: String(summary.totals.saves) },
-      { label: "Edits", value: String(summary.totals.edits) },
-      { label: "Busiest time", value: punchcardView(summary).busiest },
-      { label: "Tracking since", value: summary.firstDay ?? "—" },
-    ],
-    commits: { total: summary.totals.commits, byDay: summary.commitsByDay },
-    composition: compositionView(summary),
-    assistants: options.assistants ?? [],
-    details: detailsFor(days, summary.heatmap.map((c) => c.date), options.clients ?? {}),
-    empty: summary.total === 0,
+    empty: totals.seconds === 0,
   };
 }
 
-export { languageName };
+/** Heatmap columns are weeks, so the window has to start on a Monday. */
+function alignToWeek(from: DayKey): DayKey {
+  return shift(from, -weekdayOf(from));
+}
+
+function intoWeeks(cells: HeatCell[], today: DayKey): HeatWeek[] {
+  const weeks: HeatWeek[] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push({
+      cells: cells.slice(i, i + 7).map((cell) => ({
+        ...cell,
+        label: `${duration(cell.seconds)} on ${cell.date} (${relativeDays(
+          daysBetween(cell.date, today)
+        )})`,
+      })),
+    });
+  }
+  return weeks;
+}
+
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** One label per month, positioned at the week its first day falls in. */
+function monthLabels(cells: HeatCell[]): { index: number; label: string }[] {
+  const labels: { index: number; label: string }[] = [];
+  let lastMonth = "";
+  cells.forEach((cell, index) => {
+    const month = cell.date.slice(0, 7);
+    if (month !== lastMonth) {
+      lastMonth = month;
+      const monthIndex = Number(cell.date.slice(5, 7)) - 1;
+      labels.push({ index: Math.floor(index / 7), label: MONTHS[monthIndex] ?? "" });
+    }
+  });
+  return labels;
+}
+
+function repoRows(trees: RepoTree[]): RepoRow[] {
+  const grand = trees.reduce((sum, tree) => sum + tree.total, 0);
+  return trees.map((tree) => ({
+    repo: tree.repo,
+    total: duration(tree.total),
+    totalSeconds: tree.total,
+    share: grand === 0 ? 0 : tree.total / grand,
+    rootTime: tree.rootSeconds > 0 ? duration(tree.rootSeconds) : "",
+    folders: flattenFolders(tree, 0, tree.total),
+  }));
+}
+
+function flattenFolders(
+  node: RepoTree | { children: RepoTree["children"] },
+  depth: number,
+  repoTotal: number
+): FolderRow[] {
+  const rows: FolderRow[] = [];
+  for (const child of node.children) {
+    rows.push({
+      depth,
+      name: child.name,
+      path: child.path,
+      own: child.seconds > 0 ? duration(child.seconds) : "",
+      total: duration(child.total),
+      share: repoTotal === 0 ? 0 : child.total / repoTotal,
+    });
+    rows.push(...flattenFolders(child, depth + 1, repoTotal));
+  }
+  return rows;
+}
+
+function peakLabel(hour: number | undefined): string {
+  if (hour === undefined) {
+    return "No peak yet";
+  }
+  const end = (hour + 1) % 24;
+  return `${pad(hour)}:00 to ${pad(end)}:00`;
+}
+
+function pad(hour: number): string {
+  return hour < 10 ? `0${hour}` : String(hour);
+}

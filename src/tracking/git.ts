@@ -1,9 +1,5 @@
-// ABOUTME: Counts commits you authored in open repositories, via VS Code's built-in Git extension.
-// ABOUTME: That API isn't formally stable, so every call is guarded — the feature hides itself if absent.
-
 import * as vscode from "vscode";
-import { keyOf } from "../core/day";
-import type { DayKey } from "../core/types";
+import { keyOf, type DayKey } from "../core/day";
 
 /** The slice of the Git extension's API we use, typed loosely on purpose. */
 interface GitCommit {
@@ -47,15 +43,15 @@ async function authorEmail(repository: GitRepository): Promise<string | undefine
         return value.toLowerCase();
       }
     } catch {
-      // try the next source
+      // Try the next source.
     }
   }
   return undefined;
 }
 
 /**
- * Commits per local day, counting only those authored by you — otherwise a
- * `git pull` would credit you with your whole team's work.
+ * Commits per local day, counting only those you authored. Without the author
+ * filter a `git pull` would credit you with your whole team's work.
  */
 export async function commitsByDay(maxEntries = 1000): Promise<Record<DayKey, number>> {
   const counts: Record<DayKey, number> = {};
@@ -68,7 +64,7 @@ export async function commitsByDay(maxEntries = 1000): Promise<Record<DayKey, nu
     try {
       const email = await authorEmail(repository);
       if (!email) {
-        // Without knowing who you are we'd be counting the whole team's work.
+        // Without knowing who you are, we would be counting everyone's work.
         continue;
       }
       const commits = await repository.log({ maxEntries });
@@ -80,7 +76,7 @@ export async function commitsByDay(maxEntries = 1000): Promise<Record<DayKey, nu
         counts[key] = (counts[key] ?? 0) + 1;
       }
     } catch {
-      // A repository we can't read is skipped rather than failing the lot.
+      // A repository we cannot read is skipped rather than failing the rest.
     }
   }
   return counts;

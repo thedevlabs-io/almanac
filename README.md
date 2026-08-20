@@ -1,134 +1,139 @@
 # Almanac
 
-<img src="media/icon.png" width="96" align="right" alt="Almanac logo" />
+Local-only heatmaps and streaks for how you actually work. Days, languages,
+repositories and hours, tracked honestly, on your machine and nowhere else.
 
-A [thedevlabs-io](https://github.com/thedevlabs-io) VS Code extension that shows
-you how you actually work: a year of heatmaps, streaks by day and by language,
-when in the week you're at your sharpest — all measured honestly, and all kept
-on your own machine.
+## What counts as work
 
-## Honest by construction
+The clock runs when two things are true at once.
 
-Most "time in editor" numbers are fiction: they count a focused window whether
-or not anyone is at the keyboard. Almanac counts a minute only when **the window
-has focus and you did something within the last five minutes** — typed, moved
-the cursor or scrolled. Walk away and the clock stops. Leave a focused window
-untouched and it stops too, which is the honest answer even when it's the less
-flattering one.
+**Your window has focus.** Switch to a browser or Slack and the clock stops
+immediately. This is what stops a focused window on a second monitor from
+banking a meeting you were not in.
 
-Honest cuts both ways: work that never moves the editor is still work, so
-running a command in the terminal and stepping through a breakpoint count too.
-But neither can prove *you* did it — an agent shows the terminal it works in,
-and a crash loop lands on a stack frame just as your step does — so these can
-only hold open a clock your keyboard already opened. Nothing automated can
-claim more than one idle window past the last thing you actually did.
+**Something happened in the window recently.** Anything does:
 
-Saving isn't a signal at all. VS Code reports an extension's `save()` call as
-"manual", so a save can't tell you from an agent — and a save of your own comes
-after the typing that already counted.
+- typing, scrolling or moving the cursor in a file
+- running a command in the terminal, and output arriving from one
+- stepping through a debugger, or a task running
+- switching tabs, opening a preview, using the Simple Browser
 
-Set the tail with `almanac.idleMinutes` (1–30, 5 by default). A long gap can
-never bank more than one tick, so a suspended laptop doesn't wake up and credit
-you with eight hours.
+"Recently" is 15 minutes by default (`almanac.idleMinutes`), so reading a long
+file or thinking is not scored as idle.
 
-**Agent-written code is counted, not credited as time.** Every edit lands in the
-totals whoever made it, split by how the text arrived — typed a key at a time,
-or in a block. What an agent's writing cannot do is make it look as though you
-were sitting there.
+### Why terminal work counts
 
-## What it shows
+Typing in the integrated terminal raises no event an extension can observe. VS
+Code, however, tracks whether its own window has been interacted with recently
+and exposes that as `window.state.active`. Almanac polls it. That single fact
+covers terminal keystrokes, the Simple Browser, webviews and the settings
+editor, none of which reach an extension any other way.
 
-- **Streaks** — current and longest, by calendar day. A day counts once you pass
-  `almanac.streak.minMinutes` (5 by default), so opening the editor to check one
-  thing doesn't keep a streak alive.
-- **A year of days** — the GitHub-style grid, shaded relative to *your* range, so
-  it reads properly whether you work two hours a week or forty.
-- **Languages** — time, days, current and longest streak per language, each with
-  its own mini heatmap. The language you keep coming back to is usually not the
-  one you'd guess.
-- **Projects** — where the week went, by workspace folder.
-- **When you work** — a 7×24 punchcard, and your busiest hour.
-- **Commits** — per day, authored by you, read from open repositories.
-- **How the code arrived** — characters you typed one key at a time, versus
-  characters that landed in a block. See the note below before reading anything
-  into it.
-- **Milestones** — a quiet list. No popups, no confetti.
-- **Totals** — sessions, files touched, saves, edits, best day, tracking since.
+For the case that misses, watching a twenty minute test run without touching
+anything, Almanac follows the output stream of running shell commands. Only the
+fact that output arrived is used. The bytes themselves are never inspected.
 
-## What Almanac will *not* tell you
+That second mechanism is bounded, because output proves work is happening and
+not that you are still in the chair. Machine evidence (command output, a watch
+task restarting, an agent editing an open file, a debugger landing on a frame)
+extends a clock you opened for at most **twice the idle window**, 30 minutes at
+the default, past the last thing you actually did. It can never open a clock on
+its own. So a focused window running `tail -f` while you are at lunch stops
+counting after half an hour rather than banking the whole break.
 
-It won't tell you how much of your code was written by AI, because nothing
-available to an extension can. VS Code exposes no API for whether a completion
-came from Copilot, and terminal agents like Claude Code write files the same way
-any other tool does.
+If the count ever looks wrong, run **Almanac: Why am I idle right now?**. It
+tells you exactly what state the clock is in and why.
 
-What it can measure honestly is **typed versus arrived in a block**. An
-autocomplete accept, a paste, a multi-cursor edit, a refactor and an agent's
-write all land as blocks and are indistinguishable from one another. So the
-dashboard reports exactly that, and names the assistants you have installed as
-context — never as attribution. A number claiming "43% AI-written" would look
-precise and be a guess, which is the one thing this extension is built not to do.
+## Repositories, not folders
 
-## Reports for client work
+Almanac walks up from each folder you open until it finds a `.git` entry, and
+records your time against that repository.
 
-**Almanac: Open report** (or the *Report* button on the dashboard) gives you time
-by client and by day over a date range.
+Open a monorepo, or open one package inside it, and both land in the same place:
 
-- **Client labels** — run **Almanac: Set the client for this project** to map a
-  folder to a client, so `thedevlabs-api` and `thedevlabs-web` report as one
-  line. Unlabelled projects report under their folder name.
-- **Ranges** — this month, last month, last 7 or 30 days, all time.
-- **Rounding** — round each day up to 15 minutes, 30 minutes or the hour, per
-  client per day, the way consultancies bill. Exact time is always shown too.
-- **CSV export** — one row per day per project (`date, client, project, hours,
-  rounded_hours, seconds`), which drops straight into a spreadsheet or an
-  invoicing tool.
-- **Day drill-down** — click any day in the heatmap for what it consisted of:
-  projects, languages, hours worked, files, saves, commits.
+```
+acme-platform            6h 40m
+  └ apps                 4h 10m
+      └ web              4h 10m   opened directly
+  └ services             2h 30m
+      └ billing          2h 30m   opened directly
+```
 
-Almanac reports **time spent in the editor**. Time in meetings, browsers,
-terminals-only work and thinking away from the keyboard is not tracked, so treat
-the report as evidence supporting an invoice rather than the invoice itself.
+Folders you never opened on their own, `apps` and `services` here, carry only
+the total of what is beneath them, which is what makes the ones you did open
+distinguishable.
 
-## Your data
+Stored: the repository folder name, and the path from the repository root to the
+folder you opened. Never an absolute path, never a file name. Turn it off with
+`almanac.trackProjects`.
 
-Almanac has **no network access at all**. Everything lives in the extension's own
-global storage on this machine.
+## Privacy
 
-- **Daily aggregates only.** Never an event log — a timeline of when you touched
-  the keyboard would be both creepy and enormous.
-- **No file names, no paths, no content.** Files touched is a count. Languages
-  are language ids. Projects are the **workspace folder name only**, and
-  `almanac.trackProjects` turns even that off.
-- **Export** your data to JSON, or **delete** all of it, from the dashboard
-  footer or the command palette.
-- **Pause** tracking any time with **Almanac: Pause tracking**.
+There is no network code. No account, no sync, no telemetry. The dashboard's
+content security policy has no `connect-src`, so the panel cannot make a request
+even if some future change tried to.
 
-Commit counts come from VS Code's built-in Git extension and are filtered to your
-own `user.email`, so pulling your team's work doesn't inflate them. That API
-isn't formally stable; if it's unavailable, the feature quietly disappears.
+Everything is one JSON file in this extension's global storage, holding one
+aggregate record per calendar day: seconds split by hour, language, repository
+and kind of activity; counts of edits, saves, distinct files, sessions and your
+own commits; and how much text was typed against how much arrived in blocks.
+
+It does not hold file names, paths, contents, terminal output, commit messages,
+or any record of when you pressed a key. A day is a total, not a timeline.
+
+- **Almanac: Export my data to JSON** gives you the whole file.
+- **Almanac: Delete all tracked data** destroys it.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `Almanac: Open dashboard` | Heatmap, languages, repositories, punchcard, milestones |
+| `Almanac: Open report` | Time per client per day, with optional rounding |
+| `Almanac: Why am I idle right now?` | Explains the clock's current state |
+| `Almanac: Show the introduction` | Reopens the walkthrough |
+| `Almanac: Pause tracking` / `Resume tracking` | Stops and starts recording |
+| `Almanac: Set the client for this repository` | Maps a repository to a client |
+| `Almanac: Export report as CSV` | Writes the report as CSV |
+| `Almanac: Export my data to JSON` | Writes the whole database |
+| `Almanac: Delete all tracked data` | Deletes everything |
 
 ## Settings
 
-| Setting | Default | What it does |
+The defaults are meant to be right without being touched.
+
+| Setting | Default | Meaning |
 |---|---|---|
-| `almanac.tracking.enabled` | `true` | Record activity at all |
-| `almanac.trackProjects` | `true` | Record the workspace folder name |
-| `almanac.trackGitCommits` | `true` | Count your commits per day |
-| `almanac.streak.minMinutes` | `5` | Minutes before a day counts towards a streak |
-| `almanac.statusBar.enabled` | `true` | Show streak and today's time in the status bar |
-| `almanac.retentionDays` | `730` | Days of history to keep |
+| `almanac.enabled` | `true` | Track at all |
+| `almanac.idleMinutes` | `15` | How long the clock runs after the last signal |
+| `almanac.countTerminal` | `true` | Count terminal work, including output arriving |
+| `almanac.countDebug` | `true` | Count debug stepping |
+| `almanac.trackProjects` | `true` | Record repository and folder names |
+| `almanac.trackGitCommits` | `true` | Count commits you authored |
+| `almanac.statusBar.enabled` | `true` | Show the status bar item |
+| `almanac.streak.minMinutes` | `5` | Minutes a day needs to count towards a streak |
+| `almanac.retentionDays` | `730` | How much history to keep |
+| `almanac.clients` | `{}` | Maps repositories to client names for the report |
+| `almanac.report.rounding` | `none` | Rounding per client per day in reports |
 
-## Develop / run locally
+## Honesty, stated plainly
 
-```bash
-npm install
-npm run lint && npm test
-npm run build
-```
+Some things are genuinely not knowable from an extension, and Almanac says so
+rather than guessing:
 
-Press **F5** to launch an Extension Development Host.
+- **Authorship of a block of text.** A paste, a formatter, a refactor and a
+  coding agent are the same API event. The dashboard splits typed from block and
+  refuses to attribute a block to anyone.
+- **A debugger that stopped on its own.** A crash loop under `restart` lands on
+  a new stack frame exactly as your step does. Hence `almanac.countDebug`.
+- **Whether you were reading or staring into space.** A focused window with
+  output arriving counts. Fifteen minutes of complete silence does not.
+
+## Requirements
+
+VS Code 1.94 or later. Terminal shell integration must be enabled, which it is
+by default, for command and output signals to be seen.
 
 ## License
 
-MIT © thedevlabs-io
+MIT.

@@ -1,185 +1,190 @@
-// ABOUTME: Persistence for daily records — a single JSON file in the extension's global storage.
-// ABOUTME: Never the workspace, never the network. Writes merge, are queued, and are atomic.
-
-import * as vscode from "vscode";
-import { addDays, keyOf } from "../core/day";
-import { addChange, applyTick, bump, dayIn, prune, setCommits, type Counter } from "../core/record";
-import { emptyDelta, mergeDatabases, normalizeDatabase } from "../core/merge";
+import * as fs from "fs/promises";
+import * as path from "path";
 import type { Change } from "../core/composition";
-import { emptyDatabase, type Database, type DayKey, type DayRecord, type Tick } from "../core/types";
+import { keyOf, shift, type DayKey } from "../core/day";
+import { migrate } from "../core/migrate";
+import { addChange, applyTick, bump, dayIn, prune, setCommits, type Counter } from "../core/record";
+import { emptyDatabase, type Database, type DayRecord, type Tick } from "../core/types";
 
-const FILE = "activity.json";
-const TEMP = "activity.json.tmp";
-const CORRUPT = "activity.corrupt.json";
-const SAVE_DEBOUNCE_MS = 5000;
+const FILE_NAME = "activity.json";
+
+/**
+ * Ticks land every fifteen seconds and edits land per keystroke, so writing on
+ * every mutation would mean thousands of writes an hour. Two seconds of delay
+ * costs at most two seconds of data on a hard kill, and `flush` on deactivate
+ * covers the ordinary exit.
+ */
+const WRITE_DELAY_MS = 2000;
+
+/** Used when the configured retention is missing or not a usable number. */
+const DEFAULT_RETENTION_DAYS = 730;
 
 export class Store {
-  /** Everything on disk as of the last read, plus everything merged since. */
-  private data: Database = emptyDatabase();
-  /** Only what this window has recorded since the last flush. */
-  private delta: Record<DayKey, DayRecord> = emptyDelta();
-  private queue: Promise<unknown> = Promise.resolve();
-  private pending: ReturnType<typeof setTimeout> | undefined;
-  private readOnly = false;
+  private database: Database = emptyDatabase();
+  private loaded = false;
+  private dirty = false;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  /** Serialises writes, so two flushes can never interleave on the same file. */
+  private writing: Promise<void> = Promise.resolve();
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(
+    private readonly directory: string,
+    private readonly retentionDays: () => number
+  ) {}
 
-  private uri(name: string): vscode.Uri {
-    return vscode.Uri.joinPath(this.context.globalStorageUri, name);
-  }
-
-  private async readFile(): Promise<Record<DayKey, DayRecord> | undefined> {
-    try {
-      const bytes = await vscode.workspace.fs.readFile(this.uri(FILE));
-      const parsed = JSON.parse(new TextDecoder().decode(bytes)) as { days?: unknown };
-      return normalizeDatabase(parsed.days);
-    } catch (err) {
-      if (err instanceof vscode.FileSystemError && err.code === "FileNotFound") {
-        return {};
-      }
-      return undefined;
-    }
+  private get file(): string {
+    return path.join(this.directory, FILE_NAME);
   }
 
   async load(): Promise<void> {
-    const days = await this.readFile();
-    if (days === undefined) {
-      // The file exists but won't parse. Keep it — overwriting would destroy
-      // history that may still be recoverable — and don't write until told.
-      this.readOnly = true;
-      this.data = emptyDatabase();
-      await this.preserveCorrupt();
-      void vscode.window
-        .showWarningMessage(
-          "Almanac: your history file couldn't be read, so tracking is paused to avoid overwriting it.",
-          "Start fresh"
-        )
-        .then(async (choice) => {
-          if (choice === "Start fresh") {
-            this.readOnly = false;
-            await this.flush();
-          }
-        });
+    if (this.loaded) {
       return;
     }
-    this.data = { version: 1, days };
+    try {
+      const raw = await fs.readFile(this.file, "utf8");
+      this.database = migrate(JSON.parse(raw));
+    } catch (error) {
+      // A missing file is the normal first run. Anything else is a file we
+      // could not parse, and starting empty would silently destroy history, so
+      // it is kept aside instead.
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+        await this.quarantine(error);
+      }
+      this.database = emptyDatabase();
+    }
+    this.loaded = true;
+    this.pruneOld();
   }
 
-  private async preserveCorrupt(): Promise<void> {
+  /**
+   * Moves an unreadable file aside rather than overwriting it. Stamped, so a
+   * second failure cannot discard the first casualty, which would be the one
+   * holding the most history.
+   */
+  private async quarantine(reason: unknown): Promise<void> {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const kept = `${this.file}.${stamp}.corrupt`;
     try {
-      await vscode.workspace.fs.copy(this.uri(FILE), this.uri(CORRUPT), { overwrite: true });
-    } catch {
-      // Nothing to preserve, or we can't — either way, don't make it worse.
+      await fs.rename(this.file, kept);
+      console.error(`[Almanac] activity.json could not be read (${String(reason)}); kept as ${kept}`);
+    } catch (error) {
+      console.error("[Almanac] activity.json could not be read or renamed:", error);
+    }
+  }
+
+  /**
+   * VS Code does not coerce a settings value that violates the contributed
+   * schema, so `retentionDays` can arrive as a string or NaN. Left unguarded
+   * that produces an invalid date, a `"NaN-NaN-NaN"` key, and a prune that
+   * deletes every day the user has.
+   */
+  private get retention(): number {
+    const configured = this.retentionDays();
+    return Number.isFinite(configured) && configured >= 1 ? Math.floor(configured) : DEFAULT_RETENTION_DAYS;
+  }
+
+  private pruneOld(): void {
+    const oldest = shift(keyOf(new Date()), -this.retention);
+    const kept = prune(this.database.days, oldest);
+    if (Object.keys(kept).length !== Object.keys(this.database.days).length) {
+      this.database = { ...this.database, days: kept };
+      this.dirty = true;
     }
   }
 
   get days(): Record<DayKey, DayRecord> {
-    return this.data.days;
-  }
-
-  private scheduleSave(): void {
-    if (this.pending) {
-      return;
-    }
-    this.pending = setTimeout(() => {
-      this.pending = undefined;
-      void this.flush();
-    }, SAVE_DEBOUNCE_MS);
-  }
-
-  /**
-   * Re-read, merge this window's delta into what's on disk, then write atomically.
-   *
-   * A second VS Code window runs its own extension host with its own Store; a
-   * plain overwrite would silently discard whatever the other window recorded.
-   * Merging additively is safe because every field is a count or a duration.
-   */
-  flush(): Promise<void> {
-    const work = async (): Promise<void> => {
-      if (this.readOnly) {
-        return;
-      }
-      const delta = this.delta;
-      this.delta = emptyDelta();
-      const onDisk = (await this.readFile()) ?? {};
-      const merged = mergeDatabases(onDisk, delta);
-      this.data = { version: 1, days: merged };
-
-      await vscode.workspace.fs.createDirectory(this.context.globalStorageUri);
-      const bytes = new TextEncoder().encode(JSON.stringify(this.data));
-      // Write beside the real file and rename, so a kill mid-write can never
-      // leave a truncated history behind.
-      await vscode.workspace.fs.writeFile(this.uri(TEMP), bytes);
-      await vscode.workspace.fs.rename(this.uri(TEMP), this.uri(FILE), { overwrite: true });
-    };
-    const next = this.queue.then(work, work);
-    this.queue = next.catch(() => undefined);
-    return next;
-  }
-
-  /** Record into both the delta (to be merged) and the live view (for the UI). */
-  private mutate(date: DayKey, change: (record: DayRecord) => DayRecord): void {
-    this.delta[date] = change(dayIn(this.delta, date));
-    this.data.days[date] = change(dayIn(this.data.days, date));
-    this.scheduleSave();
-  }
-
-  addTick(date: DayKey, tick: Tick): void {
-    this.mutate(date, (record) => applyTick(record, tick));
-  }
-
-  count(date: DayKey, counter: Counter, by = 1): void {
-    this.mutate(date, (record) => bump(record, counter, by));
-  }
-
-  addChange(date: DayKey, change: Change): void {
-    this.mutate(date, (record) => addChange(record, change));
-  }
-
-  /** Commits are an absolute count from git, so this replaces rather than adds. */
-  recordCommits(date: DayKey, commits: number): void {
-    this.delta[date] = setCommits(dayIn(this.delta, date), commits);
-    this.data.days[date] = setCommits(dayIn(this.data.days, date), commits);
-    this.scheduleSave();
-  }
-
-  applyRetention(retentionDays: number, now = new Date()): void {
-    const oldest = addDays(keyOf(now), -(retentionDays - 1));
-    const before = Object.keys(this.data.days).length;
-    this.data.days = prune(this.data.days, oldest);
-    this.delta = prune(this.delta, oldest);
-    if (Object.keys(this.data.days).length !== before) {
-      this.scheduleSave();
-    }
-  }
-
-  /** Days inside the retention window — used to avoid resurrecting pruned days. */
-  isWithinRetention(date: DayKey, retentionDays: number, now = new Date()): boolean {
-    return date >= addDays(keyOf(now), -(retentionDays - 1));
-  }
-
-  async clear(): Promise<void> {
-    this.data = emptyDatabase();
-    this.delta = emptyDelta();
-    this.readOnly = false;
-    await this.queue;
-    await vscode.workspace.fs.createDirectory(this.context.globalStorageUri);
-    await vscode.workspace.fs.writeFile(
-      this.uri(FILE),
-      new TextEncoder().encode(JSON.stringify(this.data))
-    );
+    return this.database.days;
   }
 
   get snapshot(): Database {
-    return JSON.parse(JSON.stringify(this.data)) as Database;
+    return this.database;
   }
 
-  /** Write anything still pending rather than dropping it on the way out. */
-  async dispose(): Promise<void> {
-    if (this.pending) {
-      clearTimeout(this.pending);
-      this.pending = undefined;
+  day(date: DayKey): DayRecord {
+    return dayIn(this.database.days, date);
+  }
+
+  private update(date: DayKey, change: (record: DayRecord) => DayRecord): void {
+    const next = change(dayIn(this.database.days, date));
+    this.database = { ...this.database, days: { ...this.database.days, [date]: next } };
+    this.schedule();
+  }
+
+  addTick(date: DayKey, tick: Tick): void {
+    this.update(date, (record) => applyTick(record, tick));
+  }
+
+  count(date: DayKey, counter: Counter, by = 1): void {
+    this.update(date, (record) => bump(record, counter, by));
+  }
+
+  addChange(date: DayKey, change: Change): void {
+    this.update(date, (record) => addChange(record, change));
+  }
+
+  setCommits(date: DayKey, commits: number): void {
+    if (this.day(date).commits === commits) {
+      return;
     }
+    this.update(date, (record) => setCommits(record, commits));
+  }
+
+  async clear(): Promise<void> {
+    this.database = emptyDatabase();
+    this.dirty = true;
     await this.flush();
+  }
+
+  private schedule(): void {
+    this.dirty = true;
+    if (this.timer) {
+      return;
+    }
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      void this.flush();
+    }, WRITE_DELAY_MS);
+  }
+
+  /** Writes now if anything changed. Safe to call concurrently. */
+  async flush(): Promise<void> {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+    if (!this.dirty) {
+      return this.writing;
+    }
+    this.dirty = false;
+    const payload = JSON.stringify(this.database);
+    this.writing = this.writing.then(() => this.write(payload));
+    return this.writing;
+  }
+
+  /**
+   * Written to a temporary file and renamed, because rename is atomic. Writing
+   * in place means a crash mid-write leaves a truncated file, which is the one
+   * way this extension could lose a year of history.
+   */
+  private async write(payload: string): Promise<void> {
+    const temporary = `${this.file}.tmp`;
+    try {
+      await fs.mkdir(this.directory, { recursive: true });
+      await fs.writeFile(temporary, payload, "utf8");
+      await fs.rename(temporary, this.file);
+    } catch (error) {
+      // Never thrown into the extension host, but the state has to go back to
+      // dirty. A full disk during the final flush on deactivate would otherwise
+      // lose the whole session with nothing left to trigger a retry.
+      this.dirty = true;
+      console.error("[Almanac] could not save activity data:", error);
+    }
+  }
+
+  dispose(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
   }
 }

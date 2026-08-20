@@ -1,59 +1,64 @@
-// ABOUTME: Classifies how text arrived — typed one key at a time, or inserted in a block.
-// ABOUTME: Deliberately NOT "AI vs human": nothing available to an extension can tell those apart.
-
-/** A single content change, reduced to what we can honestly measure. */
+/** One document change, reduced to the three things that say how it arrived. */
 export interface Change {
-  /** Characters inserted by this change. */
   inserted: number;
-  /** Characters replaced or deleted. */
   removed: number;
-  /** True when the change spans more than one line. */
   multiline: boolean;
 }
 
-export type Kind = "typed" | "inserted" | "removed";
+export type ChangeKind = "typed" | "block";
 
 /**
- * A keystroke inserts one character, or two with an auto-closed bracket; an
- * autocomplete accept, a paste, an agent edit and a refactor all land as a block.
- *
- * We cannot separate those four, so we don't pretend to: everything over the
- * keystroke threshold is "inserted", and the dashboard says exactly that.
+ * A keystroke is small and stays on one line. Everything larger is a block: a
+ * paste, a formatter, a refactor, a coding agent. Almanac reports the split and
+ * stops there, because a paste and an agent's edit are the same API event and
+ * guessing between them would be inventing data.
  */
-export const TYPED_MAX_CHARS = 2;
+const KEYSTROKE_MAX = 4;
 
-export function classify(change: Change): Kind {
-  if (change.inserted === 0) {
-    return "removed";
+export function classify(change: Change): ChangeKind {
+  if (change.multiline) {
+    return "block";
   }
-  return change.inserted <= TYPED_MAX_CHARS && !change.multiline ? "typed" : "inserted";
+  return change.inserted <= KEYSTROKE_MAX && change.removed <= KEYSTROKE_MAX ? "typed" : "block";
 }
 
 export interface Composition {
+  /** Characters inserted one or two at a time, at a keyboard. */
   typedChars: number;
-  insertedChars: number;
-  removedChars: number;
+  /** Characters that arrived in blocks, from whatever source. */
+  blockChars: number;
+  /** How many separate block insertions there were, so average size is knowable. */
+  blockCount: number;
 }
 
 export function emptyComposition(): Composition {
-  return { typedChars: 0, insertedChars: 0, removedChars: 0 };
+  return { typedChars: 0, blockChars: 0, blockCount: 0 };
 }
 
-export function foldChange(into: Composition, change: Change): Composition {
-  const kind = classify(change);
+export function foldChange(composition: Composition, change: Change): Composition {
+  if (change.inserted <= 0) {
+    return composition;
+  }
+  if (classify(change) === "typed") {
+    return { ...composition, typedChars: composition.typedChars + change.inserted };
+  }
   return {
-    typedChars: into.typedChars + (kind === "typed" ? change.inserted : 0),
-    insertedChars: into.insertedChars + (kind === "inserted" ? change.inserted : 0),
-    removedChars: into.removedChars + change.removed,
+    ...composition,
+    blockChars: composition.blockChars + change.inserted,
+    blockCount: composition.blockCount + 1,
   };
 }
 
-/**
- * Share of *written* characters that arrived in blocks, 0–1. Undefined when
- * nothing has been written, so the UI can say "not enough to tell" rather than
- * showing a confident 0%.
- */
-export function insertedShare(composition: Composition): number | undefined {
-  const written = composition.typedChars + composition.insertedChars;
-  return written === 0 ? undefined : composition.insertedChars / written;
+export function mergeComposition(a: Composition, b: Composition): Composition {
+  return {
+    typedChars: a.typedChars + b.typedChars,
+    blockChars: a.blockChars + b.blockChars,
+    blockCount: a.blockCount + b.blockCount,
+  };
+}
+
+/** Share of inserted characters that were typed, 0 to 1. Zero writing reads as zero. */
+export function typedShare(composition: Composition): number {
+  const total = composition.typedChars + composition.blockChars;
+  return total === 0 ? 0 : composition.typedChars / total;
 }

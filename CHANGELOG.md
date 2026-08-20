@@ -1,160 +1,102 @@
 # Changelog
 
-All notable changes to Almanac are documented here. This project follows
-[Semantic Versioning](https://semver.org/).
+All notable changes to Almanac are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Almanac follows
+[semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] — 2026-08-13
+## [1.0.0]
 
-Time tracked now matches time worked.
-
-The clock only ever listened for typing, cursor moves and saves inside a text
-editor, and gave up two minutes after the last one. Everything else a working
-day is made of — running the test suite, stepping through a debugger, reading a
-file you scroll but never touch — was scored as idle, so tracked time came in
-well under real time.
-
-### Added
-
-- **Terminal work counts**: switching to a terminal, and starting a command in
-  it through shell integration (VS Code 1.93+, probed at runtime so older builds
-  are unaffected). Only the *start*, because a command that outlives the idle
-  window is the kind you walked away from, and only in the *active* terminal.
-  Off via `almanac.trackTerminal`.
-- **Scrolling counts**, in the editor you're actually in, when the top line
-  really moved — a pane resize is not a scroll.
-- **Stepping in the debugger counts** (VS Code 1.94+, probed at runtime), with
-  `almanac.trackDebug` to turn it off: a session that stops on its own, like a
-  crash loop under `restart`, lands on a new frame exactly as a step does, and
-  nothing in the API separates them. Starting a session and changing breakpoints
-  deliberately do **not** count — the debug adapter fires both by itself.
-- **Typing outside a saved file counts** — untitled buffers, notebook cells.
-  Only files are still counted towards edits, saves and distinct-file totals.
-- `almanac.idleMinutes` (1–30) to set the tail yourself.
-
-### Changed
-
-- The idle window default moved from 2 minutes to **5**. Reading a paragraph or
-  watching a build no longer stops the clock.
+A rewrite. The tracking rule, the data model and the panels were all replaced.
+Existing data is migrated on first run and nothing is lost.
 
 ### Fixed
 
-- **Saving no longer counts as input.** VS Code reports an extension's `save()`
-  as `Manual`, exactly like your Ctrl+S, so with `files.autoSave` — or any agent
-  that saves what it wrote — a machine's save credited time as though you were
-  there. A save of your own follows the typing that already counted, so nothing
-  real is lost. Saves are still counted in the day's totals; they just no longer
-  move the clock.
+- **Terminal work is counted.** This is the reason for the rewrite. The previous
+  rule required a keystroke inside a text editor to open the clock, and demoted
+  every other signal to something that could only extend a clock a keystroke had
+  already opened. Typing in a terminal raises no event an extension can see, so
+  a day spent in the terminal was recorded as a few minutes of work. The clock
+  now opens on any observable activity, and reads VS Code's own
+  `window.state.active` flag, which sees interaction with the terminal, the
+  Simple Browser, webviews and the settings editor.
+- **Long-running commands count.** Almanac follows the output stream of a
+  running shell command, so a twenty minute test run or a coding-agent session
+  reads as work rather than as idle time. Only the arrival of output is used;
+  the output itself is never inspected.
+- **Machine activity cannot count forever.** Output from a running command, a
+  watch task restarting, an agent editing an open file and a debugger landing on
+  a frame are all real evidence that work is happening, and none of them prove
+  you are still at the desk. They extend a clock you opened for at most twice
+  the idle window, 30 minutes at the default, and can never open one. A focused
+  window running `tail -f` through a lunch break stops counting.
+- **A suspended machine credits nothing.** A gap between ticks longer than a
+  minute means the host stopped running, and that interval is now dropped rather
+  than capped at one tick.
 
-- **Opening a window no longer credits time on its own.** The clock started as
-  though input had just happened, so a window restored on login and left alone
-  banked an idle window's worth of time. It now starts shut and opens on the
-  first thing you do.
-
-### Security of the number
-
-- **A machine signal can hold a clock open, never start one.** Terminal commands
-  and debug steps now only extend a clock a keyboard or pointer opened, because
-  an agent shows the terminal it works in — which makes it the active one — and
-  a crash loop lands on a stack frame just as a step does. Whatever an extension
-  is doing, it cannot claim more than one idle window past the last thing you
-  actually did.
-
-### Unchanged
-
-- The rule itself: focused **and** a human signal inside the idle window. No path
-  credits time without both, a tick is still capped at its own length, and
-  regaining focus alone still does not restart the clock.
-- **Every edit is still counted, whoever made it** — yours, a paste, a refactor,
-  an agent — split by how the text arrived, not by who is guessed to have
-  written it. Widening the clock changes *when time is credited*, never *what is
-  counted*.
-- No network code, no events stored, no file names or paths recorded.
-
-### Internal
-
-- `tracking/` split by job: `signals.ts` answers "is a person here?",
-  `tracker.ts` records what was produced, `settings.ts` caches configuration so
-  scroll and selection events don't re-read it many times a second.
-- The scroll rule moved into `core/activityClock.ts` as `isHumanScroll`, where
-  the rules that define a tracked minute live and can be tested.
-
-## [0.2.0] — 2026-08-07
-
-Reporting for client work.
+- **`countTerminal` and `countDebug` actually suppress.** Turning them off used
+  to change only the label the time was filed under.
+- **Webview bars render.** The dashboard's content security policy dropped
+  `'unsafe-inline'` for a nonce, but a nonce covers `<style>` elements and never
+  inline style attributes, which is where every bar width and column height
+  lived. Data-driven dimensions now go through generated classes in the nonced
+  stylesheet.
+- **A newer or structurally broken database is refused, not overwritten.** A
+  file whose `days` field was not a map used to be read as empty and written
+  back over the original. A file from a future schema version used to be read
+  and silently stripped of every unrecognised field.
+- **A failed write is retried.** A full disk during the final flush on
+  deactivate used to lose the session silently.
+- **A nonsense `retentionDays` no longer deletes everything.** VS Code does not
+  coerce a settings value that violates the contributed schema, and a
+  non-numeric one produced a cutoff date that pruned every day.
 
 ### Added
 
-- **Client reports** over a date range (this/last month, last 7 or 30 days, all
-  time), grouped by client then project, with a per-day breakdown.
-- **Client labels** map several folders onto one client
-  (`almanac.clients`, set via **Almanac: Set the client for this project**).
-- **Rounding** per client per day — 15m, 30m or 1h — alongside exact time.
-- **CSV export**: one row per day per project, for a spreadsheet or invoicing tool.
-- **Day drill-down**: click a day in the heatmap for its projects, languages,
-  hours, files, saves and commits.
-- Reports cover editor time only, which the report states plainly.
+- **Repository-based project tracking.** Time is attributed to the git
+  repository containing the folder you opened, found by walking up for a `.git`
+  entry. A monorepo subfolder rolls up under its repository and appears as a
+  tree beneath it, with the folders you actually opened distinguished from the
+  intermediate ones. Works for worktrees and submodules, where `.git` is a file.
+- **An introduction on first install.** A five step walkthrough covering what
+  counts as work, why terminal time is counted, how repositories are attributed,
+  what is stored, and the one setting worth changing.
+- **`Almanac: Why am I idle right now?`** Explains the clock's current state in
+  a sentence. The same explanation is in the status bar tooltip.
+- **A "where the time came from" breakdown** on the dashboard, splitting the day
+  by kind of activity, so a claim that terminal work is being missed can be
+  checked rather than argued about.
+- **Atomic writes.** The database is written to a temporary file and renamed, so
+  a crash mid-write can no longer truncate a year of history. An unreadable file
+  is kept as `activity.json.corrupt` rather than overwritten.
 
-## [0.1.0] — 2026-08-07
+### Changed
 
-First release.
+- **Default idle window is 15 minutes**, up from 5. The clock is now held open
+  by anything in the window, and the gaps it has to survive are real ones:
+  reading, thinking, waiting on a build. Focus is what bounds the generosity.
+- **Minimum VS Code version is 1.94**, for `window.state.active`,
+  `onDidStartTerminalShellExecution` and `onDidChangeActiveStackItem`.
+- `almanac.tracking.enabled` is now `almanac.enabled`; `almanac.trackTerminal`
+  is now `almanac.countTerminal`; `almanac.trackDebug` is now
+  `almanac.countDebug`.
+- Clients map from repository names rather than workspace folder names.
 
-### Added
+### Migration
 
-- **Streaks** by calendar day, current and longest, with a configurable bar
-  (`almanac.streak.minMinutes`, 5 by default) so a two-minute visit does not
-  keep a streak alive.
-- **A year of days** as a GitHub-style heatmap, shaded relative to your own
-  range rather than a fixed scale.
-- **Languages** — time, days, current and longest streak each, with per-language
-  mini heatmaps.
-- **Projects**, by workspace folder name.
-- **A 7x24 punchcard** of when you actually work, and your busiest hour.
-- **Commits per day**, authored by you, via the built-in Git extension.
-- **Milestones** as a quiet list — no popups.
-- **How the code arrived** — typed characters versus characters that landed in a
-  block, with installed AI assistants listed as context. Deliberately not framed
-  as "AI vs human": no extension API can distinguish an autocomplete accept from
-  a paste or an agent write, so Almanac measures what it can see and says so.
-- **Status bar** showing the current streak and today active time.
-- **Export to JSON** and **delete all data**, from the dashboard or the palette.
+Version 1 stored projects as a flat map of workspace folder name to seconds,
+with no record of which repository a folder belonged to. That information was
+never captured and cannot be recovered, so each old folder name becomes a
+repository of its own with all of its time at the root. That is exactly what
+version 1 was claiming. New time lands in the real tree from the upgrade on.
 
-### How time is counted
+## [0.3.0]
 
-A minute counts only when the window has focus **and** there was a keystroke,
-cursor move or save within the last two minutes. A single tick can never credit
-more than its own length, so a suspended machine cannot bank hours on wake.
+- Counted work the clock was missing, without letting machines claim it.
 
-### Privacy posture
+## [0.2.0]
 
-- **No network code**, at all.
-- **Daily aggregates only** — never an event log.
-- **No file names, paths or contents.** Files touched is a count; projects are
-  the workspace folder name, and `almanac.trackProjects` turns that off.
-- Everything lives in the extension own global storage; nothing is written into
-  your workspace.
+- Client reports, CSV export and day drill-down.
 
-### Fixed before release, from a review pass
+## [0.1.0]
 
-- **Two VS Code windows no longer overwrite each other's history.** Each window
-  runs its own extension host; writes now re-read the file and merge additively
-  inside a serialized queue, instead of replacing it wholesale.
-- **Writes are atomic** — written beside the real file and renamed — so being
-  killed mid-write can't truncate two years of history. A file that won't parse
-  is preserved as `activity.corrupt.json` and tracking pauses rather than
-  overwriting it.
-- **Pausing actually pauses.** Edit, save and file counters kept recording while
-  paused; every handler now returns early.
-- **Time is only credited for human input.** Regaining window focus, a formatter
-  or agent writing a file, and an extension opening a document all used to hold
-  the clock open. Now only cursor movement, saves, and keystroke-sized edits in
-  the editor you're looking at count — which matters most precisely because this
-  extension also measures agent-inserted blocks.
-- Commits: a repo whose `user.email` can't be determined is skipped rather than
-  counting the whole team, and commit days outside the retention window no longer
-  create records that retention immediately prunes.
-- The last few seconds of work are flushed on shutdown rather than dropped.
-
-### Internal
-
-- No runtime dependencies. Type-aware ESLint and a `node:test` suite over the
-  pure modules — the activity rule, streaks and rollups.
+- First release: heatmap, streaks, languages, projects, hours, milestones.
