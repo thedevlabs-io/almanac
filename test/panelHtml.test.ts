@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { buildDashboard } from "../src/core/dashboardModel";
 import { applyTick } from "../src/core/record";
-import { buildReport } from "../src/core/report";
+import { buildReport, filterOptions } from "../src/core/report";
 import { emptyDay, type DayRecord } from "../src/core/types";
 import { BRAND } from "../src/ui/brand";
 import { dashboardHtml } from "../src/ui/dashboardHtml";
@@ -140,4 +140,202 @@ test("a repository named like markup renders as text", () => {
   const html = dashboardHtml(buildDashboard(hostile, { today: "2026-08-20" }), CSP_SOURCE, FONTS, "dark");
   assert.equal(html.includes("<img src=x"), false, "a repository name was injected as markup");
   assert.ok(html.includes("&lt;img src=x"));
+});
+
+/* --- the tabbed shell ---------------------------------------------------- */
+
+function paneIds(html: string): string[] {
+  return [...html.matchAll(/data-pane="([a-z]+)"/g)].map((match) => match[1] ?? "");
+}
+
+function activePanes(html: string): string[] {
+  return [...html.matchAll(/class="pane on" data-pane="([a-z]+)"/g)].map((match) => match[1] ?? "");
+}
+
+test("the dashboard renders every tab's pane, with exactly one open", () => {
+  const html = dashboard();
+  assert.deepEqual(paneIds(html), ["activity", "where", "when"]);
+  assert.deepEqual(activePanes(html), ["activity"]);
+});
+
+// When and How answered one question between them, so they are one tab.
+test("when and how share a tab, and it holds all four of their cards", () => {
+  const html = dashboardHtml(
+    buildDashboard(days(), { today: "2026-08-20" }),
+    CSP_SOURCE,
+    FONTS,
+    "dark",
+    "when"
+  );
+  for (const heading of ["Hour of day", "Weekday by hour", "Where the time came from", "How text arrived"]) {
+    assert.ok(html.includes(heading), `${heading} is missing from the merged tab`);
+  }
+});
+
+test("the panel decides which tab is open, so a re-render cannot lose it", () => {
+  const model = buildDashboard(days(), { today: "2026-08-20" });
+  const html = dashboardHtml(model, CSP_SOURCE, FONTS, "dark", "when");
+  assert.deepEqual(activePanes(html), ["when"]);
+  assert.ok(
+    /data-tab="when" aria-pressed="true"/.test(html),
+    "the open tab's button should read as pressed"
+  );
+  assert.ok(/data-tab="activity" aria-pressed="false"/.test(html));
+});
+
+test("the report renders both its tabs and defaults to the client split", () => {
+  const html = reportHtml(
+    buildReport(days(), { from: "2026-08-20", to: "2026-08-20" }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark"
+  );
+  assert.deepEqual(paneIds(html), ["clients", "days"]);
+  assert.deepEqual(activePanes(html), ["clients"]);
+});
+
+test("the report can open on the day table", () => {
+  const html = reportHtml(
+    buildReport(days(), { from: "2026-08-20", to: "2026-08-20" }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark",
+    "days"
+  );
+  assert.deepEqual(activePanes(html), ["days"]);
+});
+
+// The strip is what earns the tabs the right to hide anything: whichever tab is
+// open, the figures a person opened the panel for are still on screen.
+test("the headline figures sit outside the panes, so no tab can hide them", () => {
+  const html = dashboard();
+  const strip = html.match(/<div class="strip">[\s\S]*?<\/div>\s*<nav/)?.[0] ?? "";
+  assert.ok(strip.length > 0, "no strip was rendered");
+  assert.equal(strip.includes("data-pane"), false, "the strip must not live inside a pane");
+  for (const label of ["today", "average day", "active days", "commits"]) {
+    assert.ok(strip.includes(label), `the strip is missing ${label}`);
+  }
+  assert.ok(html.indexOf('class="strip"') < html.indexOf("data-pane"), "the strip should come first");
+});
+
+test("the report strip states the rounding rather than burying it in a caption", () => {
+  const rounded = reportHtml(
+    buildReport(days(), { from: "2026-08-20", to: "2026-08-20", rounding: "15m" }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark"
+  );
+  assert.ok(rounded.includes("rounded up per day"));
+  assert.ok(rounded.includes(">15m<"));
+  const exact = reportHtml(
+    buildReport(days(), { from: "2026-08-20", to: "2026-08-20" }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark"
+  );
+  assert.ok(exact.includes("no rounding"));
+});
+
+test("the weekday grid renders seven labelled rows of 24 cells", () => {
+  const html = dashboard();
+  const rows = [...html.matchAll(/<div class="matrix-row">([\s\S]*?)<\/div>/g)];
+  assert.equal(rows.length, 7);
+  for (const row of rows) {
+    const cells = (row[1] ?? "").match(/<span class="heat-cell"/g) ?? [];
+    assert.equal(cells.length, 24, "each weekday needs all 24 hours");
+  }
+  assert.ok(html.includes('class="matrix-label"'));
+});
+
+test("lifetime figures are not windowed, so a month view still shows the whole history", () => {
+  const record = days();
+  const older = applyTick(emptyDay("2025-01-06"), { seconds: 7200, hour: 10 });
+  const html = dashboardHtml(
+    buildDashboard({ ...record, "2025-01-06": older }, { today: "2026-08-20" }),
+    CSP_SOURCE,
+    FONTS,
+    "dark"
+  );
+  assert.ok(html.includes("6 Jan 2025"), "the first tracked day should survive the rolling year");
+  // 1h 30m in the window plus 2h from before it started.
+  assert.ok(html.includes("3h 30m"), "lifetime total should count days outside the window");
+});
+
+test("the filter lists every repository and folder, with the selected ones checked", () => {
+  const record = days();
+  const options = filterOptions(record, "2026-08-20", "2026-08-20");
+  const html = reportHtml(
+    buildReport(record, { from: "2026-08-20", to: "2026-08-20", include: ["acme/apps/web"] }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark",
+    "clients",
+    options
+  );
+  for (const option of options) {
+    assert.ok(
+      html.includes(`data-filter="${option.key}"`),
+      `${option.key} is missing from the filter`
+    );
+  }
+  assert.ok(/data-filter="acme\/apps\/web" checked/.test(html), "the selected folder is not checked");
+  assert.equal(/data-filter="acme" checked/.test(html), false, "an unselected row is checked");
+  assert.ok(html.includes("Show everything"), "there is no way to clear the filter");
+});
+
+// The filter narrows both tables and the export, so it cannot live inside a tab.
+test("the filter sits outside the panes", () => {
+  const record = days();
+  const html = reportHtml(
+    buildReport(record, { from: "2026-08-20", to: "2026-08-20" }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark",
+    "clients",
+    filterOptions(record, "2026-08-20", "2026-08-20")
+  );
+  assert.ok(html.indexOf('class="card filter"') < html.indexOf("data-pane"));
+});
+
+test("a filter with no matches says so rather than looking like lost data", () => {
+  const record = days();
+  const html = reportHtml(
+    buildReport(record, { from: "2026-08-20", to: "2026-08-20", include: ["nothing-here"] }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark",
+    "clients",
+    filterOptions(record, "2026-08-20", "2026-08-20")
+  );
+  assert.ok(html.includes("Nothing in this range matches the filter"));
+  assert.ok(html.includes('data-filter="acme"'), "the filter must stay on screen to be undone");
+});
+
+test("no inline style attribute survives the filter or a day detail either", () => {
+  const record = days();
+  const withFilter = reportHtml(
+    buildReport(record, { from: "2026-08-20", to: "2026-08-20", include: ["acme"] }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark",
+    "days",
+    filterOptions(record, "2026-08-20", "2026-08-20")
+  );
+  const withDay = dashboardHtml(
+    buildDashboard(record, { today: "2026-08-20", selected: "2026-08-20" }),
+    CSP_SOURCE,
+    FONTS,
+    "dark"
+  );
+  for (const [name, html] of [["report+filter", withFilter], ["dashboard+day", withDay]] as const) {
+    assert.equal(/\sstyle\s*=\s*["']/.test(html), false, `${name} has an inline style attribute`);
+  }
 });

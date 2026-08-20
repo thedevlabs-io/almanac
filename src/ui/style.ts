@@ -305,5 +305,180 @@ a, .accent-text { color: var(--brand-accent-text); }
 .note { margin-top: 10px; }
 .lead { margin-bottom: 12px; }
 .repo-bar { display: block; margin: 6px 0 8px; }
+
+/* ---------------------------------------------------------------------------
+   The tabbed shell.
+
+   Both panels are one page with a headline strip that never moves and a set of
+   tabs beneath it. The strip is the reason the tabs are allowed to hide things:
+   whichever tab is open, today's time, the window total and the streak are
+   still on screen, so navigating never costs the reader the basics.
+   --------------------------------------------------------------------------- */
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 1px;
+  background: var(--vscode-editorWidget-border, var(--vscode-panel-border));
+  border: 1px solid var(--vscode-editorWidget-border, transparent);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: ${BRAND.space.sm};
+}
+.strip .cell { background: var(--vscode-editorWidget-background); padding: 8px 12px; }
+.strip .v {
+  display: block;
+  font-family: var(--font-mono);
+  letter-spacing: ${BRAND.monoTracking};
+  font-variant-numeric: tabular-nums;
+  font-size: 1.3em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.strip .k {
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--vscode-descriptionForeground);
+}
+/* Today is the one figure still changing, so it carries the accent. */
+.strip .cell.live .v { color: var(--brand-accent-text); }
+
+.tabnav { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: ${BRAND.space.sm}; }
+.tabnav .hint { margin-left: auto; font-size: 0.72em; color: var(--vscode-descriptionForeground); }
+
+.pane { display: none; }
+.pane.on { display: block; }
+.pane > .lead { font-size: 0.85em; color: var(--vscode-descriptionForeground); max-width: 78ch; }
+
+/* Twelve columns, because half the panes want a 7/5 or 8/4 split and a
+   minmax(320px, 1fr) auto-fit cannot express one. */
+.grid.cols { grid-template-columns: repeat(12, 1fr); gap: 10px; }
+.grid.cols > .c4 { grid-column: span 4; }
+.grid.cols > .c5 { grid-column: span 5; }
+.grid.cols > .c7 { grid-column: span 7; }
+.grid.cols > .c8 { grid-column: span 8; }
+.grid.cols > .c12 { grid-column: span 12; }
+@media (max-width: 900px) {
+  .grid.cols > .c4, .grid.cols > .c5, .grid.cols > .c7, .grid.cols > .c8 { grid-column: span 12; }
+}
+
+/* Density. Cards inside a pane hold tables rather than prose, so they carry
+   less padding and a smaller heading than a full-width prose card would. */
+.card { padding: 12px 14px; margin-bottom: 0; }
+.card + .card { margin-top: 10px; }
+h2 {
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vscode-descriptionForeground);
+  margin: 0 0 10px;
+}
+
+table.tight th, table.tight td { padding: 4px 6px; font-size: 0.95em; }
+table.tight tbody tr:last-child td { border-bottom: none; }
+table.tight .bar { height: 5px; }
+table.tight td.barcell { width: 68px; }
+tfoot th { border-bottom: none; text-transform: none; letter-spacing: 0; font-size: 1em; color: var(--vscode-foreground); }
+
+/* The weekday-by-hour grid. Cells are flexible in width so 24 of them fit
+   whatever the panel is; only the height is fixed. */
+.matrix { display: grid; gap: 2px; }
+.matrix-row { display: grid; grid-template-columns: 2.4em repeat(24, 1fr); gap: 2px; align-items: center; }
+.matrix-row .heat-cell { width: auto; height: 12px; }
+.matrix-label {
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  color: var(--vscode-descriptionForeground);
+}
+.matrix-head { display: grid; grid-template-columns: 2.4em repeat(24, 1fr); gap: 2px; }
+.matrix-head span {
+  font-family: var(--font-mono);
+  font-size: 0.6em;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+}
+
+.spark { display: flex; align-items: flex-end; gap: 1px; height: 46px; }
+.spark span {
+  flex: 1;
+  min-height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: color-mix(in srgb, var(--brand-accent) 52%, transparent);
+}
+.spark span.peak { background: var(--brand-accent); }
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 4px;
+}
+
+/* The client split. One bar, one segment per client, so a glance answers "who
+   did this month belong to" before any row is read. */
+.stack { display: flex; height: 9px; border-radius: var(--radius-full); overflow: hidden; background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent); margin-bottom: 10px; }
+.stack span { display: block; }
+.swatch { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; }
+.seg-0, .swatch.seg-0 { background: var(--brand-accent); }
+.seg-1, .swatch.seg-1 { background: color-mix(in srgb, var(--brand-accent) 58%, transparent); }
+.seg-2, .swatch.seg-2 { background: color-mix(in srgb, var(--brand-accent) 32%, transparent); }
+.seg-3, .swatch.seg-3 { background: color-mix(in srgb, var(--vscode-foreground) 34%, transparent); }
+
+.recent-cell { display: inline-block; vertical-align: -2px; margin-right: 7px; }
+
+/* A day's square is a control now, so it says so on hover and on focus. */
+.heat-cell[data-day] { cursor: pointer; }
+.heat-cell[data-day]:hover { outline: 1px solid var(--vscode-foreground); outline-offset: 1px; }
+.heat-cell[data-day]:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.heat-cell.picked { outline: 2px solid var(--brand-accent); outline-offset: 1px; }
+
+/* The clicked day, inline under the grid so the grid stays on screen. */
+.day-detail {
+  margin-top: ${BRAND.space.sm};
+  padding-top: ${BRAND.space.sm};
+  border-top: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+}
+.day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.day-head strong { letter-spacing: ${BRAND.displayTracking}; }
+.day-head .muted { margin-left: 8px; }
+.day-head-right { display: flex; align-items: center; gap: 10px; }
+.day-grid { margin-top: 10px; }
+/* Inside the detail the cards are already nested one deep, so they lose their
+   own fill and keep only the rule that separates them. */
+.day-grid > .card { background: none; border: none; padding: 0 0 4px; }
+
+/* The repository and folder filter. Scrolls rather than pushing the tables off
+   the page: a monorepo with fifty folders would otherwise own the panel. */
+.filter { margin-bottom: ${BRAND.space.sm}; }
+.filter-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.filter-box {
+  max-height: 190px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1px 16px;
+}
+.filter-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.filter-row:hover { background: color-mix(in srgb, var(--vscode-foreground) 7%, transparent); }
+.filter-repo { font-weight: ${BRAND.displayWeight}; }
+.filter-row.depth-1 { padding-left: 18px; }
+.filter-row.depth-2 { padding-left: 32px; }
+.filter-row.depth-3 { padding-left: 46px; }
+.filter-row input { accent-color: var(--brand-accent); margin: 0; }
+button:disabled { opacity: 0.5; cursor: default; }
 `;
 }

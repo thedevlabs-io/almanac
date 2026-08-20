@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>3 · Console</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  body { padding: 16px; }
+  .shell { max-width: 1240px; }
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(12, 1fr); }
+  .card { padding: 12px 14px; }
+  .c3 { grid-column: span 3; } .c4 { grid-column: span 4; }
+  .c5 { grid-column: span 5; } .c6 { grid-column: span 6; }
+  .c7 { grid-column: span 7; } .c8 { grid-column: span 8; } .c12 { grid-column: span 12; }
+  .card h2 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; }
+  .stat { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .stat .v { font-size: 24px; font-weight: 600; color: var(--fg-strong); letter-spacing: -0.02em; }
+  .stat .d { font-size: 10.5px; color: var(--muted); text-align: right; }
+  .heat-body { --cell: 11px; --cellgap: 2px; }
+  .heat { --cell: 11px; --cellgap: 2px; }
+  .pm-head, .pm-row { display: grid; grid-template-columns: 26px repeat(24, 1fr); gap: 2px; align-items: center; }
+  .pm-head span { font-size: 8.5px; color: var(--muted); text-align: center; }
+  .pm-row .cell { width: auto; height: 11px; }
+  .pm-label { font-size: 9.5px; color: var(--muted); }
+  .spark { display: flex; align-items: flex-end; gap: 1px; height: 34px; }
+  .spark i { flex: 1; background: color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 1px 1px 0 0; }
+  .spark i.peak { background: var(--accent); }
+  table.tight th, table.tight td { padding: 4px 6px; font-size: 11.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { font-size: 10.5px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-full); padding: 2px 9px; }
+  .chip b { color: var(--accent-text); }
+  @media (max-width: 1000px) { .c3,.c4,.c5,.c6,.c7,.c8 { grid-column: span 12; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="logo">A</div>
+    <div><strong>Almanac</strong> <span class="muted small mono">2026-08-01 → 2026-08-20</span></div>
+    <div class="spacer"></div>
+    <div class="tabs"><button>7d</button><button aria-pressed="true">30d</button><button>90d</button><button>365d</button></div>
+    <button class="btn">CSV</button>
+  </div>
+
+  <div class="grid">
+    <div class="card c3 stat"><div><div class="v mono">3h 11m</div><div class="muted small">today</div></div><div class="d" id="sparkToday"></div></div>
+    <div class="card c3 stat"><div><div class="v mono">48h 22m</div><div class="muted small">last 30 days</div></div><div class="d">avg 3h 42m<br>14 active</div></div>
+    <div class="card c3 stat"><div><div class="v mono">9</div><div class="muted small">day streak</div></div><div class="d">best 31<br>safe today</div></div>
+    <div class="card c3 stat"><div><div class="v mono">74</div><div class="muted small">commits</div></div><div class="d">386 files<br>1,204 saves</div></div>
+
+    <div class="card c8">
+      <h2>Activity · 371 days</h2>
+      <div id="heat"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card c4">
+      <h2>Hour of day</h2>
+      <div class="spark" id="spark"></div>
+      <div class="legend" style="margin-top:6px"><span class="mono small muted">00</span><span class="spacer" style="flex:1"></span><span class="mono small muted">peak 14:00</span><span class="spacer" style="flex:1"></span><span class="mono small muted">23</span></div>
+      <h2 style="margin-top:16px">Weekday × hour</h2>
+      <div id="matrix"></div>
+    </div>
+
+    <div class="card c4">
+      <h2>Languages</h2>
+      <table class="tight"><tbody id="langs"></tbody></table>
+    </div>
+    <div class="card c4">
+      <h2>Signal source</h2>
+      <table class="tight"><tbody id="signals"></tbody></table>
+      <p class="muted small" style="margin-top:8px"><span class="mono">almanac.why</span> explains any row.</p>
+    </div>
+    <div class="card c4">
+      <h2>Text composition</h2>
+      <table class="tight"><tbody>
+        <tr><td>Typed</td><td class="num mono">62%</td><td class="num mono muted">412,508 ch</td></tr>
+        <tr><td>Blocks</td><td class="num mono">38%</td><td class="num mono muted">252,880 ch</td></tr>
+        <tr><td>Block count</td><td class="num mono">1,841</td><td class="num mono muted">avg 137 ch</td></tr>
+        <tr><td>Edits</td><td class="num mono">18,422</td><td class="num mono muted">61 sessions</td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="card c7">
+      <h2>Repositories and folders</h2>
+      <table class="tight">
+        <thead><tr><th>Path</th><th class="num">Own</th><th class="num">Total</th><th class="num">Share</th></tr></thead>
+        <tbody id="repos"></tbody>
+      </table>
+    </div>
+    <div class="card c5">
+      <h2>Milestones</h2>
+      <table class="tight"><tbody id="miles"></tbody></table>
+      <h2 style="margin-top:16px">Tracked since</h2>
+      <div class="chips">
+        <span class="chip mono">2025-08-15</span>
+        <span class="chip">214 active days</span>
+        <span class="chip"><b>912h 40m</b> lifetime</span>
+      </div>
+    </div>
+
+    <div class="card c12">
+      <h2>Billing · rounded up to 15m per client per day</h2>
+      <table class="tight">
+        <thead><tr><th>Client</th><th>Repositories</th><th class="num">Days</th><th class="num">Tracked</th><th class="num">Billable</th><th class="num">Hours</th><th>Daily shape</th></tr></thead>
+        <tbody id="clients"></tbody>
+        <tfoot><tr><th>Total</th><th></th><th class="num mono">14</th><th class="num mono">44h 11m</th><th class="num mono">46h 30m</th><th class="num mono">46.50</th><th></th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="render.js"></script>
+<script>
+  var A = ALMANAC;
+  R.calendar(document.getElementById("heat"));
+  R.legend(document.getElementById("legend"), "levels cut against 7h 05m, your busiest day");
+  R.punchMatrix(document.getElementById("matrix"));
+  document.getElementById("spark").innerHTML = A.hours24.map(function (h) {
+    return '<i class="' + (h.hour === 14 ? "peak" : "") + '" style="height:' + Math.max(3, h.share * 100) + '%" title="' +
+      String(h.hour).padStart(2, "0") + ":00 · " + A.fmt(h.seconds) + '"></i>';
+  }).join("");
+  document.getElementById("sparkToday").innerHTML = '<span class="mono">since 09:12</span><br><span class="mono">clock running</span>';
+
+  function tbl(id, list) {
+    document.getElementById(id).innerHTML = list.map(function (r) {
+      return "<tr><td>" + r.label + '</td><td class="num mono">' + A.fmt(r.seconds) +
+        '</td><td class="num mono muted">' + Math.round(r.share * 100) + "%</td></tr>";
+    }).join("");
+  }
+  tbl("langs", A.languages);
+  tbl("signals", A.signals);
+  document.getElementById("miles").innerHTML = A.milestones.map(function (m) {
+    return "<tr><td>" + m.label + '</td><td class="num mono">' + m.value + '</td><td class="num mono muted">→ ' + m.next +
+      '</td><td style="width:70px"><div class="bar"><i style="width:' + (m.progress * 100) + '%"></i></div></td></tr>';
+  }).join("");
+  var rows = "";
+  A.repositories.forEach(function (repo) {
+    rows += '<tr><td><b>' + repo.repo + '</b></td><td class="num mono muted">' + A.fmt(repo.root) +
+      '</td><td class="num mono">' + A.fmt(repo.total) + '</td><td class="num mono muted">' + Math.round(repo.share * 100) + "%</td></tr>";
+    repo.folders.forEach(function (f) {
+      rows += '<tr><td class="muted" style="padding-left:' + (10 + f.depth * 16) + 'px">' + f.name +
+        '</td><td class="num mono muted">' + A.fmt(f.own) + '</td><td class="num mono">' + A.fmt(f.total) + '</td><td></td></tr>';
+    });
+  });
+  document.getElementById("repos").innerHTML = rows;
+  document.getElementById("clients").innerHTML = A.clients.map(function (c) {
+    var shape = A.days.slice(-20).map(function (d) {
+      return '<span class="cell" data-level="' + A.level(d.seconds) + '" style="width:6px;height:12px;display:inline-block"></span>';
+    }).join("");
+    return "<tr><td><b>" + c.client + '</b></td><td class="muted">' + c.repos.join(", ") +
+      '</td><td class="num mono">' + c.days + '</td><td class="num mono">' + A.fmt(c.seconds) +
+      '</td><td class="num mono">' + A.fmt(c.billable) + '</td><td class="num mono">' + A.hours(c.billable) +
+      '</td><td style="line-height:0">' + shape + "</td></tr>";
+  }).join("");
+</script>
+</body>
+</html>

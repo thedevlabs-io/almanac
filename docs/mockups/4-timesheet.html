@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>4 · Timesheet</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .shell { max-width: 980px; }
+  .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--gap); margin-bottom: var(--gap); }
+  .invoice { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .invoice .total { font-size: 40px; font-weight: 600; letter-spacing: -0.03em; color: var(--fg-strong); line-height: 1; }
+  .invoice .sub { color: var(--muted); margin-top: 6px; }
+  .split { display: grid; gap: 10px; margin-top: 18px; }
+  .split .line { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+  .stack { display: flex; height: 10px; border-radius: var(--radius-full); overflow: hidden; background: var(--heat-0); }
+  .stack i { display: block; }
+  .s0 { background: var(--accent); } .s1 { background: color-mix(in srgb, var(--accent) 60%, transparent); }
+  .s2 { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .swatch { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 6px; }
+  .daylist { display: grid; }
+  .day {
+    display: grid; grid-template-columns: 92px 34px 1fr 150px 74px; gap: 12px; align-items: center;
+    padding: 8px 4px; border-bottom: 1px solid var(--border);
+  }
+  .day:last-child { border-bottom: 0; }
+  .day.today { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: var(--radius-sm); }
+  .day .chipday { width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--heat-0);
+                  display: grid; place-items: center; font-size: 11px; }
+  .chipday[data-level="1"] { background: var(--heat-1); } .chipday[data-level="2"] { background: var(--heat-2); }
+  .chipday[data-level="3"] { background: var(--heat-3); color: var(--ink); }
+  .chipday[data-level="4"] { background: var(--heat-4); color: var(--ink); font-weight: 600; }
+  .day .who { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); margin-bottom: var(--gap); }
+  .card h2 { margin-bottom: 12px; }
+  details summary { cursor: pointer; color: var(--accent-text); font-size: 11.5px; margin-top: 10px; }
+  details[open] summary { margin-bottom: 10px; }
+  @media (max-width: 800px) { .hero, .two { grid-template-columns: 1fr; } .day { grid-template-columns: 80px 30px 1fr 90px; } .day .who { display: none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="logo">A</div>
+    <h1>Timesheet</h1>
+    <div class="spacer"></div>
+    <div class="tabs"><button aria-pressed="true">This month</button><button>Last month</button><button>90 days</button><button>12 months</button></div>
+    <button class="btn">Export CSV</button>
+  </div>
+
+  <div class="hero">
+    <div class="invoice">
+      <div class="muted up">Billable · 1–20 Aug 2026</div>
+      <div class="total mono">46h 30m</div>
+      <div class="sub small">44h 11m tracked, rounded up to 15m per client per day. 14 working days.</div>
+      <div class="split" id="split"></div>
+    </div>
+    <div class="card">
+      <h2>Not billable, still yours</h2>
+      <div class="bars" id="nonbill"></div>
+      <p class="muted small" style="margin-top:12px">Anything outside a mapped repository shows up here rather than vanishing. Map it in <span class="mono">almanac.clients</span> to bill it.</p>
+      <details>
+        <summary>What counts as a tracked minute?</summary>
+        <p class="muted small">The window is focused and something happened in it inside the idle window. Terminal, debugger and editor all count. A sleeping laptop never does.</p>
+      </details>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <h2>Day by day</h2>
+    <div class="daylist" id="days"></div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>The year, for context</h2>
+      <div id="heat"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card">
+      <h2>Client detail</h2>
+      <table>
+        <thead><tr><th>Client</th><th class="num">Days</th><th class="num">Tracked</th><th class="num">Billable</th><th class="num">Hours</th></tr></thead>
+        <tbody id="clients"></tbody>
+        <tfoot><tr><th>Total</th><th class="num mono">14</th><th class="num mono">44h 11m</th><th class="num mono">46h 30m</th><th class="num mono">46.50</th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="card"><h2>Languages</h2><div class="bars" id="langs"></div></div>
+    <div class="card"><h2>Where the time came from</h2><div class="bars" id="signals"></div></div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>Evidence</h2>
+      <table>
+        <tbody>
+          <tr><td>Commits</td><td class="num mono">74</td><td>Files touched</td><td class="num mono">386</td></tr>
+          <tr><td>Saves</td><td class="num mono">1,204</td><td>Edits</td><td class="num mono">18,422</td></tr>
+          <tr><td>Sessions</td><td class="num mono">61</td><td>Busiest hour</td><td class="num mono">14:00</td></tr>
+          <tr><td>Typed</td><td class="num mono">62%</td><td>In blocks</td><td class="num mono">38%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card"><h2>Milestones</h2><div class="bars" id="miles"></div></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="render.js"></script>
+<script>
+  var A = ALMANAC;
+  R.calendar(document.getElementById("heat"), { days: 371 });
+  R.legend(document.getElementById("legend"));
+  R.bars(document.getElementById("langs"), A.languages);
+  R.bars(document.getElementById("signals"), A.signals);
+  R.bars(document.getElementById("nonbill"), [
+    { label: "scratch", seconds: 4980, share: 0.6 },
+    { label: "No repository open", seconds: 3120, share: 0.38 }
+  ]);
+  R.bars(document.getElementById("miles"), A.milestones.map(function (m) {
+    return { label: m.label, share: m.progress, right: m.value + " / " + m.next };
+  }), { right: function (r) { return r.right; } });
+
+  var total = A.clients.reduce(function (s, c) { return s + c.billable; }, 0);
+  document.getElementById("split").innerHTML =
+    '<div class="stack">' + A.clients.map(function (c, i) {
+      return '<i class="s' + i + '" style="width:' + (c.billable / total * 100) + '%" title="' + c.client + '"></i>';
+    }).join("") + "</div>" +
+    A.clients.map(function (c, i) {
+      return '<div class="line"><span><span class="swatch s' + i + '"></span>' + c.client +
+        ' <span class="muted small">' + c.repos.join(", ") + '</span></span><span class="mono">' + A.fmt(c.billable) + "</span></div>";
+    }).join("");
+
+  var names = ["Internal", "Acme Corp", "Internal, Acme Corp", "Acme Corp", "Internal"];
+  document.getElementById("days").innerHTML = A.days.slice(-20).reverse().map(function (d, i) {
+    var lvl = A.level(d.seconds);
+    var who = d.seconds === 0 ? "nothing tracked" : names[i % names.length];
+    return '<div class="day' + (d.date === A.today ? " today" : "") + '">' +
+      '<span class="mono small muted">' + d.date.slice(5) + " " + A.WEEKDAYS[d.weekday] + "</span>" +
+      '<span class="chipday mono" data-level="' + lvl + '">' + d.day.getDate() + "</span>" +
+      '<span class="bar"><i style="width:' + (d.seconds / A.max * 100) + '%"></i></span>' +
+      '<span class="who">' + who + "</span>" +
+      '<span class="mono small" style="text-align:right">' + (d.seconds ? A.fmt(d.seconds) : "none") + "</span>" +
+      "</div>";
+  }).join("");
+
+  document.getElementById("clients").innerHTML = A.clients.map(function (c) {
+    return "<tr><td><b>" + c.client + '</b><div class="muted small">' + c.repos.join(", ") +
+      '</div></td><td class="num mono">' + c.days + '</td><td class="num mono">' + A.fmt(c.seconds) +
+      '</td><td class="num mono">' + A.fmt(c.billable) + '</td><td class="num mono">' + A.hours(c.billable) + "</td></tr>";
+  }).join("");
+</script>
+</body>
+</html>

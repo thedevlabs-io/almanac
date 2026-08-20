@@ -3,7 +3,17 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   // design-system is a submodule with its own repo, conventions and lint setup.
-  { ignores: ["dist/**", "out/**", "node_modules/**", "media/**", "design-system/**"] },
+  // docs/mockups is throwaway browser HTML for design review, not shipped code.
+  {
+    ignores: [
+      "dist/**",
+      "out/**",
+      "node_modules/**",
+      "media/**",
+      "design-system/**",
+      "docs/mockups/**"
+    ]
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

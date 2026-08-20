@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>1 · Ledger</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .shell { max-width: 760px; }
+  .lede { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 0 0 28px; }
+  .lede .big { font-size: 46px; font-weight: 600; letter-spacing: -0.03em; color: var(--fg-strong); line-height: 1; }
+  section { border-top: 1px solid var(--border); padding: 22px 0; }
+  section > h2 { margin-bottom: 14px; color: var(--muted); }
+  .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 18px 24px; }
+  .kv div { display: grid; gap: 1px; }
+  .kv .v { font-size: 19px; color: var(--fg-strong); font-weight: 600; }
+  .rows { display: grid; gap: 0; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 5px 0; border-bottom: 1px dotted var(--border); }
+  .row:last-child { border-bottom: 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .tree { display: grid; gap: 2px; }
+  .tree .r { display: grid; grid-template-columns: 1fr auto; padding: 3px 0; }
+  .tree .r.repo { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; color: var(--fg-strong); font-weight: 600; }
+  .d1 { padding-left: 16px; color: var(--muted); }
+  .d2 { padding-left: 32px; color: var(--muted); }
+  @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="logo">A</div>
+    <div><strong>Almanac</strong> <span class="muted small">· 1 Aug – 20 Aug 2026</span></div>
+    <div class="spacer"></div>
+    <div class="tabs"><button>Week</button><button aria-pressed="true">Month</button><button>Quarter</button><button>Year</button></div>
+    <button class="btn">Export CSV</button>
+  </div>
+
+  <div class="lede">
+    <span class="big mono">48h 22m</span>
+    <span class="muted">tracked over 14 active days, averaging 3h 42m. 3h 11m today.</span>
+  </div>
+
+  <section>
+    <h2 class="up">A year of days</h2>
+    <div id="heat"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section>
+    <h2 class="up">The numbers</h2>
+    <div class="kv">
+      <div><span class="v mono">9</span><span class="muted small">day streak · best 31</span></div>
+      <div><span class="v mono">74</span><span class="muted small">commits</span></div>
+      <div><span class="v mono">386</span><span class="muted small">files touched</span></div>
+      <div><span class="v mono">1,204</span><span class="muted small">saves</span></div>
+      <div><span class="v mono">61</span><span class="muted small">sessions</span></div>
+      <div><span class="v mono">14:00</span><span class="muted small">busiest hour</span></div>
+    </div>
+  </section>
+
+  <section class="two">
+    <div>
+      <h2 class="up">Languages</h2>
+      <div class="rows" id="langs"></div>
+    </div>
+    <div>
+      <h2 class="up">Where the time came from</h2>
+      <div class="rows" id="signals"></div>
+      <p class="muted small" style="margin-top:10px">Terminal counts the same as editor. Run <span class="mono">Almanac: Why am I idle right now?</span> if a row looks wrong.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="up">Repositories and folders</h2>
+    <div class="tree" id="repos"></div>
+  </section>
+
+  <section class="two">
+    <div>
+      <h2 class="up">How text arrived</h2>
+      <div class="rows">
+        <div class="row"><span>Typed</span><span class="mono">62% · 412,508 chars</span></div>
+        <div class="row"><span>In blocks</span><span class="mono">38% · 252,880 chars</span></div>
+        <div class="row"><span>Blocks</span><span class="mono">1,841 · avg 137 chars</span></div>
+      </div>
+      <p class="muted small" style="margin-top:10px">A block is a paste, a formatter, a refactor or a coding agent. Almanac does not guess which.</p>
+    </div>
+    <div>
+      <h2 class="up">Milestones</h2>
+      <div class="rows" id="miles"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="up">Billing</h2>
+    <table>
+      <thead><tr><th>Client</th><th>Repositories</th><th class="num">Days</th><th class="num">Tracked</th><th class="num">Billable</th></tr></thead>
+      <tbody id="clients"></tbody>
+      <tfoot><tr><th>Total</th><th></th><th class="num mono">14</th><th class="num mono">44:11</th><th class="num mono">46:30</th></tr></tfoot>
+    </table>
+    <p class="muted small" style="margin-top:10px">Rounded up to 15m per client per day.</p>
+  </section>
+</div>
+
+<script src="data.js"></script>
+<script src="render.js"></script>
+<script>
+  var A = ALMANAC;
+  R.calendar(document.getElementById("heat"));
+  R.legend(document.getElementById("legend"), "cut against your busiest day, 7h 05m");
+  function rows(host, list, right) {
+    document.getElementById(host).innerHTML = list.map(function (r) {
+      return '<div class="row"><span>' + r.label + '</span><span class="mono muted">' + right(r) + "</span></div>";
+    }).join("");
+  }
+  rows("langs", A.languages, function (r) { return A.fmt(r.seconds) + "  " + Math.round(r.share * 100) + "%"; });
+  rows("signals", A.signals, function (r) { return A.fmt(r.seconds) + "  " + Math.round(r.share * 100) + "%"; });
+  rows("miles", A.milestones, function (r) { return r.value + " / " + r.next; });
+  document.getElementById("repos").innerHTML = A.repositories.map(function (repo) {
+    var out = '<div class="r repo"><span>' + repo.repo + '</span><span class="mono">' + A.fmt(repo.total) + "</span></div>";
+    out += '<div class="r d1"><span>repository root</span><span class="mono">' + A.fmt(repo.root) + "</span></div>";
+    repo.folders.forEach(function (f) {
+      out += '<div class="r ' + (f.depth ? "d2" : "d1") + '"><span>' + f.name + '</span><span class="mono">' + A.fmt(f.total) + "</span></div>";
+    });
+    return out;
+  }).join("");
+  document.getElementById("clients").innerHTML = A.clients.map(function (c) {
+    return "<tr><td>" + c.client + '</td><td class="muted small">' + c.repos.join(", ") +
+      '</td><td class="num mono">' + c.days + '</td><td class="num mono">' + A.fmt(c.seconds) +
+      '</td><td class="num mono">' + A.fmt(c.billable) + "</td></tr>";
+  }).join("");
+</script>
+</body>
+</html>

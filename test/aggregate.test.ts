@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { averageActiveDay, heatLevel, heatmap, punchcard, repositories, signalSplit, topLanguages, totalsFor } from "../src/core/aggregate";
+import { averageActiveDay, heatLevel, heatmap, punchcard, repositories, signalSplit, topLanguages, totalsFor, weekHours } from "../src/core/aggregate";
 import { applyTick } from "../src/core/record";
 import { emptyDay, type DayRecord } from "../src/core/types";
 
@@ -125,4 +125,36 @@ test("a zero or negative tick changes nothing", () => {
   const base = emptyDay("2026-08-01");
   assert.equal(applyTick(base, { seconds: 0, hour: 9 }), base);
   assert.equal(applyTick(base, { seconds: -5, hour: 9 }), base);
+});
+
+test("the weekday grid puts a day's hours on the right weekday row", () => {
+  // 2026-08-17 is a Monday, 2026-08-22 a Saturday.
+  const days = {
+    "2026-08-17": dayWith("2026-08-17", [{ seconds: 3600, hour: 9 }]),
+    "2026-08-22": dayWith("2026-08-22", [{ seconds: 1800, hour: 22 }]),
+  };
+  const week = weekHours(days, "2026-08-17", "2026-08-23");
+  assert.equal(week.rows[0]?.[9], 3600, "Monday 09:00 should hold the Monday hour");
+  assert.equal(week.rows[5]?.[22], 1800, "Saturday 22:00 should hold the Saturday hour");
+  assert.equal(week.rows[0]?.[22], 0, "no hour may leak across weekdays");
+  assert.deepEqual(week.weekdayTotals, [3600, 0, 0, 0, 0, 1800, 0]);
+  assert.equal(week.busiestWeekday, 0);
+  assert.equal(week.busiest, 3600);
+});
+
+test("the same weekday across several weeks accumulates into one row", () => {
+  const days = {
+    "2026-08-17": dayWith("2026-08-17", [{ seconds: 600, hour: 14 }]),
+    "2026-08-24": dayWith("2026-08-24", [{ seconds: 900, hour: 14 }]),
+  };
+  const week = weekHours(days, "2026-08-17", "2026-08-30");
+  assert.equal(week.rows[0]?.[14], 1500);
+});
+
+test("a window with nothing tracked has no busiest weekday rather than Monday", () => {
+  const week = weekHours({}, "2026-08-17", "2026-08-23");
+  assert.equal(week.busiestWeekday, undefined);
+  assert.equal(week.busiest, 0);
+  assert.equal(week.rows.length, 7);
+  assert.equal(week.rows[3]?.length, 24);
 });

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>6 · Hybrid</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  body { padding: 14px 16px; }
+  .shell { max-width: 1120px; }
+  .topbar { margin-bottom: 12px; gap: 10px; }
+
+  /* Console density: tight cards, uppercase micro-headings. */
+  .card { padding: 12px 14px; }
+  .card > h2 { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; }
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(12, 1fr); }
+  .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c5 { grid-column: span 5; }
+  .c6 { grid-column: span 6; } .c7 { grid-column: span 7; } .c8 { grid-column: span 8; } .c12 { grid-column: span 12; }
+
+  /* Always-on stat strip: one line, so switching tabs never hides the basics. */
+  .strip {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; margin-bottom: 12px;
+  }
+  .strip div { background: var(--panel); padding: 9px 12px; }
+  .strip b { display: block; font-size: 18px; font-weight: 600; color: var(--fg-strong); letter-spacing: -0.02em; line-height: 1.2; }
+  .strip span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+  .strip .live b { color: var(--accent-text); }
+
+  /* Focus navigation, shrunk to Console scale. */
+  nav.sections { display: flex; gap: 2px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+  nav.sections button {
+    font: inherit; font-size: 11.5px; background: none; border: 1px solid transparent;
+    color: var(--muted); padding: 5px 12px; border-radius: var(--radius-full); cursor: pointer;
+  }
+  nav.sections button:hover { color: var(--fg); background: var(--panel-2); }
+  nav.sections button[aria-pressed="true"] { background: var(--accent); color: var(--ink); font-weight: 600; }
+  nav.sections .hint { margin-left: auto; font-size: 10.5px; color: var(--muted); }
+  .pane { display: none; }
+  .pane.on { display: block; }
+  .pane > .lead { font-size: 11.5px; color: var(--muted); margin: 0 0 10px; max-width: 76ch; }
+
+  table.tight th, table.tight td { padding: 4px 6px; font-size: 11.5px; }
+  table.tight th { font-size: 9.5px; }
+  table.tight tbody tr:last-child td { border-bottom: 0; }
+
+  .heat { --cell: 11px; --cellgap: 2px; }
+  .pm-head, .pm-row { display: grid; grid-template-columns: 28px repeat(24, 1fr); gap: 2px; align-items: center; }
+  .pm-head span { font-size: 8.5px; color: var(--muted); text-align: center; }
+  .pm-row .cell { width: auto; height: 12px; }
+  .pm-label { font-size: 9.5px; color: var(--muted); }
+  .spark { display: flex; align-items: flex-end; gap: 1px; height: 40px; }
+  .spark i { flex: 1; background: color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 1px 1px 0 0; }
+  .spark i.peak { background: var(--accent); }
+  .axis { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--muted); margin-top: 4px; }
+
+  .tree td.f { color: var(--muted); }
+  .stack { display: flex; height: 9px; border-radius: var(--radius-full); overflow: hidden; background: var(--heat-0); margin-bottom: 10px; }
+  .s0 { background: var(--accent); }
+  .s1 { background: color-mix(in srgb, var(--accent) 58%, transparent); }
+  .s2 { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+  .swatch { width: 7px; height: 7px; border-radius: 2px; display: inline-block; margin-right: 6px; }
+  .note { font-size: 10.5px; color: var(--muted); margin-top: 8px; }
+  @media (max-width: 980px) {
+    .strip { grid-template-columns: repeat(3, 1fr); }
+    .c3,.c4,.c5,.c6,.c7,.c8 { grid-column: span 12; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="logo">A</div>
+    <strong>Almanac</strong>
+    <span class="muted small mono">2026-08-01 → 2026-08-20</span>
+    <div class="spacer"></div>
+    <div class="tabs"><button>7d</button><button aria-pressed="true">30d</button><button>90d</button><button>365d</button></div>
+    <button class="btn">Export CSV</button>
+  </div>
+
+  <div class="strip">
+    <div class="live"><b class="mono">3h 11m</b><span>today · running</span></div>
+    <div><b class="mono">48h 22m</b><span>this month</span></div>
+    <div><b class="mono">3h 42m</b><span>average day</span></div>
+    <div><b class="mono">14</b><span>active days</span></div>
+    <div><b class="mono">9</b><span>streak · best 31</span></div>
+    <div><b class="mono">74</b><span>commits</span></div>
+  </div>
+
+  <nav class="sections">
+    <button data-p="p1" aria-pressed="true">Activity</button>
+    <button data-p="p2">Where</button>
+    <button data-p="p3">When</button>
+    <button data-p="p4">How</button>
+    <button data-p="p5">Billing</button>
+    <span class="hint">Numbers above stay put on every tab</span>
+  </nav>
+
+  <div class="pane on" id="p1">
+    <p class="lead">One square per day. Shades are cut against your busiest day in this range, so the same shade means different things in different ranges.</p>
+    <div class="grid">
+      <div class="card c8">
+        <h2>371 days</h2>
+        <div id="heat"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="card c4">
+        <h2>Recent days</h2>
+        <table class="tight"><tbody id="recent"></tbody></table>
+      </div>
+      <div class="card c4">
+        <h2>Milestones</h2>
+        <table class="tight"><tbody id="miles"></tbody></table>
+      </div>
+      <div class="card c4">
+        <h2>Counted</h2>
+        <table class="tight"><tbody>
+          <tr><td>Edits</td><td class="num mono">18,422</td><td>Saves</td><td class="num mono">1,204</td></tr>
+          <tr><td>Files</td><td class="num mono">386</td><td>Sessions</td><td class="num mono">61</td></tr>
+          <tr><td>Commits</td><td class="num mono">74</td><td>Peak hour</td><td class="num mono">14:00</td></tr>
+        </tbody></table>
+      </div>
+      <div class="card c4">
+        <h2>Lifetime</h2>
+        <table class="tight"><tbody>
+          <tr><td>Tracked since</td><td class="num mono">2025-08-15</td></tr>
+          <tr><td>Total time</td><td class="num mono">912h 40m</td></tr>
+          <tr><td>Active days</td><td class="num mono">214</td></tr>
+          <tr><td>Longest streak</td><td class="num mono">31 days</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="pane" id="p2">
+    <p class="lead">Time follows the repository you were inside, then the language of the file in front of you. Only a repository folder name and a path relative to its root is ever stored.</p>
+    <div class="grid">
+      <div class="card c7">
+        <h2>Repositories and folders</h2>
+        <table class="tight tree">
+          <thead><tr><th>Path</th><th class="num">Own</th><th class="num">Total</th><th class="num">Share</th></tr></thead>
+          <tbody id="repos"></tbody>
+        </table>
+        <p class="note">Folders beneath a repository are the workspace folders you opened inside it. "Own" is time with that folder open directly.</p>
+      </div>
+      <div class="card c5">
+        <h2>Languages</h2>
+        <table class="tight"><tbody id="langs"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="pane" id="p3">
+    <p class="lead">Every hour you have worked in this range, by hour of day and by weekday.</p>
+    <div class="grid">
+      <div class="card c5">
+        <h2>Hour of day</h2>
+        <div class="spark" id="spark"></div>
+        <div class="axis"><span class="mono">00</span><span class="mono">peak 14:00</span><span class="mono">23</span></div>
+        <table class="tight" style="margin-top:12px"><tbody>
+          <tr><td>Busiest hour</td><td class="num mono">14:00 · 4h 12m</td></tr>
+          <tr><td>Busiest weekday</td><td class="num mono">Tue · 11h 06m</td></tr>
+          <tr><td>Earliest start</td><td class="num mono">07:41</td></tr>
+          <tr><td>Latest activity</td><td class="num mono">23:18</td></tr>
+        </tbody></table>
+      </div>
+      <div class="card c7">
+        <h2>Weekday × hour</h2>
+        <div id="matrix"></div>
+        <div class="legend" id="legend2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pane" id="p4">
+    <p class="lead">A minute counts only when the window was focused and something actually happened in it. This is where that time came from, and how the text in your files got there.</p>
+    <div class="grid">
+      <div class="card c5">
+        <h2>Signal source</h2>
+        <table class="tight"><tbody id="signals"></tbody></table>
+        <p class="note">Terminal counts the same as editor. Run <span class="mono">Almanac: Why am I idle right now?</span> to see what the clock currently thinks.</p>
+      </div>
+      <div class="card c7">
+        <h2>How text arrived</h2>
+        <table class="tight"><tbody>
+          <tr><td>Typed</td><td class="num mono">62%</td><td class="num mono muted">412,508 chars</td></tr>
+          <tr><td>In blocks</td><td class="num mono">38%</td><td class="num mono muted">252,880 chars</td></tr>
+          <tr><td>Blocks</td><td class="num mono">1,841</td><td class="num mono muted">avg 137 chars</td></tr>
+        </tbody></table>
+        <p class="note">A block is a paste, a formatter, a refactor or a coding agent. Almanac does not guess which.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pane" id="p5">
+    <p class="lead">Repository time mapped to clients, rounded up to 15m per client per day. An unmapped repository bills under its own name rather than disappearing.</p>
+    <div class="grid">
+      <div class="card c12">
+        <h2>46h 30m billable · 44h 11m tracked</h2>
+        <div class="stack" id="stack"></div>
+        <table class="tight">
+          <thead><tr><th>Client</th><th>Repositories</th><th class="num">Days</th><th class="num">Tracked</th><th class="num">Billable</th><th class="num">Hours</th></tr></thead>
+          <tbody id="clients"></tbody>
+          <tfoot><tr><th>Total</th><th></th><th class="num mono">14</th><th class="num mono">44h 11m</th><th class="num mono">46h 30m</th><th class="num mono">46.50</th></tr></tfoot>
+        </table>
+      </div>
+      <div class="card c12">
+        <h2>Day by day</h2>
+        <table class="tight">
+          <thead><tr><th>Date</th><th>Client</th><th>Repositories</th><th class="num">Tracked</th><th class="num">Billable</th></tr></thead>
+          <tbody id="dayrows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="render.js"></script>
+<script>
+  var A = ALMANAC;
+  R.calendar(document.getElementById("heat"));
+  R.legend(document.getElementById("legend"), "busiest day: 7h 05m");
+  R.legend(document.getElementById("legend2"));
+  R.punchMatrix(document.getElementById("matrix"));
+
+  document.getElementById("spark").innerHTML = A.hours24.map(function (h) {
+    return '<i class="' + (h.hour === 14 ? "peak" : "") + '" style="height:' + Math.max(3, h.share * 100) +
+      '%" title="' + String(h.hour).padStart(2, "0") + ":00 · " + A.fmt(h.seconds) + '"></i>';
+  }).join("");
+
+  function shareTable(id, list) {
+    document.getElementById(id).innerHTML = list.map(function (r) {
+      return "<tr><td>" + r.label + '</td><td class="num mono">' + A.fmt(r.seconds) +
+        '</td><td class="num mono muted">' + Math.round(r.share * 100) +
+        '%</td><td style="width:64px"><div class="bar"><i style="width:' + (r.share * 100) + '%"></i></div></td></tr>';
+    }).join("");
+  }
+  shareTable("langs", A.languages);
+  shareTable("signals", A.signals);
+
+  document.getElementById("miles").innerHTML = A.milestones.map(function (m) {
+    return "<tr><td>" + m.label + '</td><td class="num mono">' + m.value +
+      '</td><td class="num mono muted">→ ' + m.next +
+      '</td><td style="width:60px"><div class="bar"><i style="width:' + (m.progress * 100) + '%"></i></div></td></tr>';
+  }).join("");
+
+  document.getElementById("recent").innerHTML = A.days.slice(-7).reverse().map(function (d) {
+    return "<tr><td>" + '<span class="cell" data-level="' + A.level(d.seconds) +
+      '" style="display:inline-block;vertical-align:-2px;margin-right:7px"></span>' +
+      '<span class="mono">' + d.date.slice(5) + "</span> " + A.WEEKDAYS[d.weekday] +
+      '</td><td class="num mono">' + (d.seconds ? A.fmt(d.seconds) : "none") + "</td></tr>";
+  }).join("");
+
+  var rows = "";
+  A.repositories.forEach(function (repo) {
+    rows += "<tr><td><b>" + repo.repo + '</b></td><td class="num mono muted">' + A.fmt(repo.root) +
+      '</td><td class="num mono">' + A.fmt(repo.total) + '</td><td class="num mono muted">' +
+      Math.round(repo.share * 100) + "%</td></tr>";
+    repo.folders.forEach(function (f) {
+      rows += '<tr><td class="f" style="padding-left:' + (10 + f.depth * 16) + 'px">' + f.name +
+        '</td><td class="num mono muted">' + A.fmt(f.own) + '</td><td class="num mono">' + A.fmt(f.total) + "</td><td></td></tr>";
+    });
+  });
+  document.getElementById("repos").innerHTML = rows;
+
+  var total = A.clients.reduce(function (s, c) { return s + c.billable; }, 0);
+  document.getElementById("stack").innerHTML = A.clients.map(function (c, i) {
+    return '<i class="s' + i + '" style="width:' + (c.billable / total * 100) + '%" title="' + c.client + '"></i>';
+  }).join("");
+  document.getElementById("clients").innerHTML = A.clients.map(function (c, i) {
+    return "<tr><td><span class='swatch s" + i + "'></span><b>" + c.client + '</b></td><td class="muted">' +
+      c.repos.join(", ") + '</td><td class="num mono">' + c.days + '</td><td class="num mono">' + A.fmt(c.seconds) +
+      '</td><td class="num mono">' + A.fmt(c.billable) + '</td><td class="num mono">' + A.hours(c.billable) + "</td></tr>";
+  }).join("");
+
+  var who = [["Internal", "almanac"], ["Acme Corp", "devlabs-web"], ["Acme Corp", "design-system"], ["Internal", "almanac"]];
+  document.getElementById("dayrows").innerHTML = A.days.slice(-12).reverse().filter(function (d) { return d.seconds > 0; })
+    .map(function (d, i) {
+      var w = who[i % who.length];
+      var billable = Math.ceil(d.seconds / 900) * 900;
+      return '<tr><td class="mono">' + d.date + "</td><td>" + w[0] + '</td><td class="muted">' + w[1] +
+        '</td><td class="num mono">' + A.fmt(d.seconds) + '</td><td class="num mono">' + A.fmt(billable) + "</td></tr>";
+    }).join("");
+
+  document.querySelectorAll("nav.sections button").forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll("nav.sections button").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      document.querySelectorAll(".pane").forEach(function (p) { p.classList.toggle("on", p.id === b.dataset.p); });
+    };
+  });
+</script>
+</body>
+</html>

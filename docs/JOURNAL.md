@@ -31,6 +31,113 @@
 
 ## Log
 
+### 2026-08-20 (filters, day drill-down, 1.3.0)
+
+Review findings fixed before the commit:
+
+- `src/core/dashboardModel.ts` - `weekHoursLegend`. The matrix was shaded against
+  the busiest single hour while the legend beneath it printed thresholds cut
+  against the busiest whole *day*, so every bound it named was several times too
+  large. Two scales on one screen need two legends. Pinned by a test that asserts
+  the two legends' top stops differ, which is the assertion whose absence let it
+  through. #fix
+- `recentDays` is now cut against the year's busiest day rather than the busiest
+  of its own seven, so a quiet Tuesday cannot be the hottest square on a screen
+  that also shows the grid. Same class of bug as the legend. #fix
+- The Lifetime card is now "All time on record" and says days past
+  `almanac.retentionDays` are pruned. Calling a retention-bounded total a
+  lifetime was the same dishonesty the card's own comment complained about.
+- `src/ui/shell.ts` - the strip's extra line is a plain string escaped here,
+  not raw HTML trusted to the caller. A raw-HTML parameter guarded only by a
+  comment rots.
+- `src/ui/dashboard.ts` - `isDayKey` round-trips through `dateOf`/`keyOf`, so
+  `2026-99-99` is rejected rather than rolled over into an empty month name.
+- `src/ui/report.ts` - filter keys capped at 500. Every key is tested against
+  every folder of every day in range.
+- `docs/mockups/README.md` - the samples use inline style attributes and their
+  own palette, both of which the panels forbid. Says why that is fine in a
+  `file://` page, so the directory does not read as the repo ignoring its own
+  rules. `preview/` is gitignored as build output.
+
+- `src/core/report.ts` - `include`, `matches`, `selectionKey`/`parseSelection`
+  and `filterOptions`. Rows are now summed folder by folder rather than taken
+  from `ProjectRecord.seconds`, because a folder filter can only be applied at
+  that level. A folder key matches by path prefix, so `src` covers `src/core`;
+  matching the exact path only would report a fraction of the work and look like
+  the filter had eaten it. `foldersOf` falls back to a single root entry for
+  days migrated from schema 1, which have a repository total and no folder
+  detail: without it a filtered report could come out smaller than the
+  unfiltered one for old days. #decision
+- `filterOptions` reads the unfiltered days on purpose. Options built from the
+  filtered set vanish as they are used, which leaves no way back. #decision
+- `src/core/dashboardModel.ts` - `WindowName` and `windowRange(name, today)` are
+  gone; the dashboard is a fixed 365 days. The window tabs were four labels for
+  the same question, and worse, `averageDay` and `activeDays` silently changed
+  meaning between them. `dayDetail` builds a single day through `totalsFor` over
+  a one-day range, so a day cannot disagree with the year. #breaking
+- Cell tooltips gained the busiest repository and language via `busiestKey`.
+  Still no new storage: both are the day's own top entries.
+- `src/ui/dashboard.ts` - holds `selectedDay`. The Close button posts the same
+  `day` message with an empty date, so there is one path in and one out, and the
+  date is regex-checked before reaching the model because a webview is untrusted
+  input. Same for the report's filter keys.
+- `src/ui/dashboardHtml.ts` - three tabs, When and How merged. Squares are
+  `role="button"` with `tabindex` and an Enter/Space handler, so the drill-down
+  is reachable without a mouse.
+- `test/heatmap.test.ts` - the window-tab tests were deleted with the feature and
+  replaced by ones covering the fixed range, the tooltip contents and the day
+  drill-down. Not weakened to pass: the behaviour they described no longer exists.
+
+### 2026-08-20 (panel redesign, built)
+
+- `src/ui/shell.ts` - new. The strip, tab bar, panes, cards, bars and legend
+  both panels share. The dashboard and the report are the same page with a
+  different default tab, so writing the shell twice would have guaranteed drift.
+- `src/ui/dashboardHtml.ts`, `src/ui/reportHtml.ts` - rebuilt on that shell as
+  four and two tabs. Progress-bar lists became tight tables with the bar reduced
+  to a 68px cell, which is the only change that actually removed the crowding:
+  the bars were carrying five different kinds of fact and reading as one texture.
+- `src/ui/dashboard.ts`, `src/ui/report.ts` - each panel now owns its open tab
+  and passes it into the renderer. The dashboard re-renders every 30 seconds and
+  on every theme change, so a tab held only in the webview would snap back to
+  the first one while being read. The webview toggles classes itself and the
+  message only records the choice; re-rendering on it would make the click
+  flicker. #decision
+- `src/core/aggregate.ts` - `weekHours`, 7 rows of 24. Derived, not stored:
+  `DayRecord.hours` plus the date is enough, so the weekday-by-hour grid costs
+  no schema change and keeps the no-event-log rule intact. Shaded against its
+  own busiest cell, because an hour of a Tuesday and a whole Tuesday are
+  different quantities and one scale would leave every cell in the coldest band.
+- `src/core/dashboardModel.ts` - `weekHours`, `recentDays`, `busiestWeekdayLabel`
+  and `lifetime`. Lifetime is read from every day on record rather than the
+  window: a month view claiming four hours tracked in total reads as data loss,
+  not as a filter. #decision
+- `src/ui/style.ts` - strip, tabnav, panes, twelve-column grid, tight tables,
+  matrix, sparkline and client stack. Surfaces still come from
+  `var(--vscode-*)`; the brand still supplies only accent, type and radius.
+- `scripts/preview-panels.ts`, `npm run preview` - renders the shipping markup
+  to `docs/mockups/preview` with a stand-in for VS Code's theme variables. A
+  layout change was otherwise unreviewable without an extension host, and a
+  mockup does not prove the real renderer produces the same page.
+- `test/panelHtml.test.ts`, `test/aggregate.test.ts` - the strip must sit outside
+  every pane, exactly one pane may be open, the caller decides which, and the
+  weekday grid must not leak an hour across weekdays.
+
+### 2026-08-20 (panel redesign, samples)
+
+- `src/ui/report.ts` - the report panel never set `iconPath`, so its tab showed
+  VS Code's generic webview glyph while the dashboard showed the Almanac mark.
+  Same one-liner the dashboard already had. #fix
+- `docs/mockups/` - five standalone HTML samples of a redesigned dashboard and
+  report, on fake data covering every tracked figure, for Akhshy to pick from
+  before any panel code changes. Browser-only review artefacts, not shipped.
+  A sixth, `6-hybrid.html`, followed his review: Console's density with Focus's
+  tabs, plus a stat strip that survives tab switches so navigation never hides
+  the headline numbers.
+- `eslint.config.mjs` - ignore `docs/mockups/**`. It is browser HTML with
+  `window` and `document` globals and no TypeScript, so the extension's lint
+  config has nothing useful to say about it. #decision
+
 ### 2026-08-20 (heatmap)
 
 - `src/ui/style.ts` - `--heat-0` was `var(--vscode-editorWidget-background)`,
