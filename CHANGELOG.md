@@ -4,6 +4,76 @@ All notable changes to Almanac are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Almanac follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0]
+
+The dashboard and the report were one long scroll of progress bars. Both are now
+one page: headline figures that never move, and tabs beneath them.
+
+### Added
+
+- **Filter a report by repository or folder.** Checkboxes above the tabs, one
+  per repository and one per folder inside it, with the time each holds. Tick
+  several and the report covers exactly those. It narrows both tables and the
+  CSV, and a filtered export is named `-filtered` so it cannot be mistaken for
+  the whole range later. Selecting a folder includes everything beneath it:
+  picking `src` and getting only the minutes that exact folder was open would be
+  a filter that lies. The options come from the unfiltered range, so a filter
+  can always be undone.
+- **Click a day in the heatmap to open it.** The day expands under the grid:
+  the hours it spanned, its repositories and folders, languages, what held the
+  clock open, files, saves, commits and how the text arrived. The grid stays on
+  screen, because comparing one Tuesday with the last is the reason to click a
+  square at all. Hovering now names the busiest repository and language too, so
+  finding the day you want does not take a click per square.
+
+### Changed
+
+- **The dashboard covers one rolling year, and the Week, Month, Quarter and Year
+  tabs are gone.** They were four ways to ask a question the page already
+  answered twice, once in the heatmap and once in the recent-days table, and
+  every figure quietly changed meaning between them: "average day" over a week
+  and over a year are different claims with the same label.
+- **When and How are one tab.** "You work at 14:00, mostly on Tuesdays, and the
+  terminal held the clock open" is a single thought about the shape of the work,
+  and splitting it made both halves look thinner than they were.
+
+- **The dashboard is tabbed.** Activity, Where, When and How. Above them sits a
+  strip of six figures, today, the window total, the average day, active days,
+  the streak and commits, that stays on screen whichever tab is open. That strip
+  is what earns the tabs the right to hide anything: navigating never costs you
+  the numbers you opened the panel for.
+- **The report is tabbed too**, By client and Day by day, over the same strip,
+  which now states the rounding as a figure instead of burying it in a caption
+  under the title. The two panels are the same page with a different default tab.
+- **Fewer bars, more numbers.** Languages, signals, milestones and composition
+  were five stacked lists of progress bars, which made everything look like one
+  texture and gave no exact figures. They are tables now: duration, share, and a
+  short bar at the end of the row where a share of a whole is genuinely the point.
+- **The panels are denser.** Smaller cards, monospace uppercase headings, and a
+  twelve column grid, so a pane can split 7/5 or 8/4 instead of every card
+  claiming the full width.
+
+### Added
+
+- **A weekday-by-hour grid.** Seven rows, 24 columns, shaded against its own
+  busiest hour rather than the day heatmap's busiest day. It answers what the
+  hour-of-day chart could not: whether your Saturdays look like your Tuesdays.
+  No new data is stored. A day already keeps 24 hour buckets and knows its own
+  date, so the weekday is arithmetic.
+- **Lifetime figures on the dashboard**, deliberately not windowed: first tracked
+  day, total time, active days, longest streak. Windowing them would make them
+  wrong rather than filtered.
+- **A recent-days table** on the Activity tab, so the last seven days are legible
+  at any window rather than only in the week view.
+- **`npm run preview`** writes the real panel markup to `docs/mockups/preview`
+  with a stand-in for VS Code's theme variables, so a layout change can be
+  reviewed in a browser without launching an extension host.
+
+### Fixed
+
+- **The report panel had no icon.** It never set `iconPath`, so its tab showed
+  VS Code's generic webview glyph while the dashboard showed the Almanac mark.
+
 ## [1.2.0]
 
 The heatmap was hard to read. Three bugs and a missing idea.

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Almanac · dashboard and report samples</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .shell { max-width: 720px; }
+  .item { display: grid; grid-template-columns: 28px 1fr; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .item .n { font-size: 20px; font-weight: 600; color: var(--accent-text); }
+  .item a { font-size: 15px; font-weight: 600; text-decoration: none; }
+  .item p { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .item .tags { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 10.5px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-full); padding: 2px 9px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar"><div class="logo">A</div><h1>Five ways this could look</h1></div>
+  <p class="muted" style="margin-bottom:18px">Same fake data in all five, covering everything Almanac tracks. Each one is a single page standing in for both the dashboard and the report. Bottom-right button flips light and dark.</p>
+
+  <div class="item"><span class="n">1</span><div>
+    <a href="1-ledger.html">Ledger</a>
+    <p>Quiet and typographic. No progress bars at all: numbers live in monospace rows, sections are divided by rules rather than boxes. The year heatmap is the only graphic.</p>
+    <div class="tags"><span class="tag">calm</span><span class="tag">narrow column</span><span class="tag">expert-leaning</span></div>
+  </div></div>
+
+  <div class="item"><span class="n">2</span><div>
+    <a href="2-briefing.html">Briefing</a>
+    <p>Opens with a plain-English paragraph telling you what your month was. Every card says what it measures before it shows a number. The heatmap is three real calendar months with day numbers in the squares.</p>
+    <div class="tags"><span class="tag">beginner-friendly</span><span class="tag">calendar heatmap</span><span class="tag">explains itself</span></div>
+  </div></div>
+
+  <div class="item"><span class="n">3</span><div>
+    <a href="3-console.html">Console</a>
+    <p>Dense twelve-column grid, everything on one screen, tables instead of bars. Adds an hour-of-day sparkline and a weekday-by-hour heatmap. Most information per pixel, least hand-holding.</p>
+    <div class="tags"><span class="tag">expert</span><span class="tag">dense</span><span class="tag">two heatmaps</span></div>
+  </div></div>
+
+  <div class="item"><span class="n">4</span><div>
+    <a href="4-timesheet.html">Timesheet</a>
+    <p>Billing first. A big billable total with a stacked client split, then day-by-day rows with a heat chip and who each day belonged to. Activity stats sit underneath as supporting evidence.</p>
+    <div class="tags"><span class="tag">freelancer</span><span class="tag">invoice-shaped</span><span class="tag">day rows</span></div>
+  </div></div>
+
+  <div class="item"><span class="n">5</span><div>
+    <a href="5-focus.html">Focus</a>
+    <p>One hero number, then five tabs: Overview, Where, When, How, Billing. Nothing is crowded because only a fifth is on screen at once, and each tab opens with a sentence explaining it.</p>
+    <div class="tags"><span class="tag">tabbed</span><span class="tag">uncrowded</span><span class="tag">scales to both audiences</span></div>
+  </div></div>
+  <div class="item"><span class="n">6</span><div>
+    <a href="6-hybrid.html">Hybrid · Focus + Console</a>
+    <p>Console's density and type, Focus's navigation. A six-figure stat strip that stays put on every tab, then five pill tabs over a compact twelve-column grid of tables. Nothing is crowded because only one tab is on screen, and nothing is hidden because the headline numbers never move.</p>
+    <div class="tags"><span class="tag">recommended</span><span class="tag">tabbed</span><span class="tag">dense</span><span class="tag">two heatmaps</span></div>
+  </div></div>
+</div>
+<script src="data.js"></script>
+<script src="render.js"></script>
+</body>
+</html>

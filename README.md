@@ -86,17 +86,44 @@ or any record of when you pressed a key. A day is a total, not a timeline.
 
 ## Reading the dashboard
 
-**Week** shows a row per day: the day's name, how long you worked, and the
-stretch of the day it fell in. Every day appears, including the empty ones.
+Six figures sit across the top and stay there: today, the last 365 days, your
+average active day, days active, the streak, and commits. Under them are three
+tabs, and whichever one is open those six do not move.
 
-**Month, quarter and year** show the calendar grid, with weekday labels down the
-side and month labels across the top. Levels are cut against the busiest day in
-the window rather than a fixed number of hours, so a part-time week and a
-full-time week both have shape. The legend names what each shade is worth in
-hours, and it changes when you change the window.
+**Activity** is the calendar grid, one square per day of the year, with weekday
+labels down the side and month labels across the top. Levels are cut against
+your busiest day rather than a fixed number of hours, so a part-time week and a
+full-time week both have shape, and the legend names what each shade is worth.
+Hovering a square names the day, the time, and the repository and language most
+of it went to. Clicking one opens that day underneath: the hours it spanned, its
+repositories and folders, languages, what held the clock open, and the counts.
+Beside the grid are the last seven days, your milestones, the raw tallies, and
+your lifetime figures, which are deliberately not windowed.
 
-The punchcard below is the same time folded into 24 hours, so it answers when
-you work rather than how much.
+**Where** is the repository tree and the language split.
+
+**When and how** folds the year into 24 hours, then into a weekday-by-hour grid
+shaded against its own busiest hour, so it answers whether your Saturdays look
+like your Tuesdays. Beside it: what held the clock open, and how much text was
+typed against how much arrived in blocks.
+
+There is no week, month or quarter control. The grid already shows every day and
+the table already shows the last seven, and a range control made figures like
+"average day" mean something different without saying so.
+
+## Reading the report
+
+The report is the same page, billing instead of activity. Its strip carries the
+billable and tracked totals, the working days, the client count and the rounding
+in force. Above the tabs is a filter: one checkbox per repository and one per
+folder inside it, with the time each holds. Tick a few and both tables and the
+CSV cover exactly those. Ticking a folder includes everything beneath it, and
+an export made under a filter is named `-filtered` so it cannot be mistaken for
+the whole range months later.
+
+**By client** maps repository time to clients, with an unmapped repository
+billing under its own name rather than disappearing. **Day by day** is one row
+per client per day, which is the shape the CSV takes.
 
 ## Branding
 

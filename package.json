@@ -2,7 +2,7 @@
   "name": "almanac",
   "displayName": "Almanac",
   "description": "Local-only heatmaps and streaks for how you actually work: days, languages, repositories and hours, tracked honestly.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "thedevlabs-io",
   "author": {
     "name": "thedevlabs-io"
@@ -235,6 +235,7 @@
     "lint": "eslint .",
     "test": "npm run compile && esbuild test/*.test.ts --bundle --outdir=dist/test --out-extension:.js=.cjs --platform=node --format=cjs && node --test dist/test/*.test.cjs",
     "smoke": "npm run build && node scripts/smoke.mjs",
+    "preview": "esbuild scripts/preview-panels.ts --bundle --outfile=dist/preview.cjs --platform=node --format=cjs && node dist/preview.cjs",
     "package": "npm run tokens && vsce package",
     "tokens": "node scripts/build-brand.mjs"
   },

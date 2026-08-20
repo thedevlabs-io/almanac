@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
-import { buildDashboard, type WindowName } from "../core/dashboardModel";
+import { dateOf, keyOf } from "../core/day";
+import { buildDashboard } from "../core/dashboardModel";
 import type { Store } from "../storage/store";
 import type { SettingsCache } from "../tracking/settings";
-import { dashboardHtml } from "./dashboardHtml";
+import { dashboardHtml, isDashboardTab, type DashboardTab } from "./dashboardHtml";
 import { brandFonts, brandTheme } from "./panel";
 
 const REFRESH_MS = 30 * 1000;
@@ -10,7 +11,14 @@ const REFRESH_MS = 30 * 1000;
 export class Dashboard {
   private static instance: Dashboard | undefined;
 
-  private window: WindowName = "year";
+  /**
+   * Which tab is open. Held here, not only in the webview: the panel re-renders
+   * itself every 30 seconds and on any theme or settings change, and a tab that
+   * jumped back to Activity each time would read as a bug.
+   */
+  private tab: DashboardTab = "activity";
+  /** The day whose square was clicked, cleared by clicking Close. */
+  private selectedDay: string | undefined;
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -22,7 +30,7 @@ export class Dashboard {
   ) {
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
-      (message: { type?: string; window?: string }) => this.handle(message),
+      (message: { type?: string; tab?: string; date?: string }) => this.handle(message),
       null,
       this.disposables
     );
@@ -58,9 +66,18 @@ export class Dashboard {
     return Dashboard.instance;
   }
 
-  private handle(message: { type?: string; window?: string }): void {
-    if (message.type === "window" && isWindowName(message.window)) {
-      this.window = message.window;
+  private handle(message: { type?: string; tab?: string; date?: string }): void {
+    // The webview has already switched tabs on its own. Recording it is all
+    // that is needed, and re-rendering here would only make the click flicker.
+    if (message.type === "tab" && isDashboardTab(message.tab)) {
+      this.tab = message.tab;
+      return;
+    }
+    // An empty date is the Close button: the same message either way, so there
+    // is one path in and one path out of having a day open.
+    if (message.type === "day") {
+      const date = message.date ?? "";
+      this.selectedDay = isDayKey(date) ? date : undefined;
       this.render();
       return;
     }
@@ -82,14 +99,15 @@ export class Dashboard {
 
   render(): void {
     const model = buildDashboard(this.store.days, {
-      window: this.window,
       minStreakMinutes: this.settings.current.streakMinMinutes,
+      selected: this.selectedDay,
     });
     this.panel.webview.html = dashboardHtml(
       model,
       this.panel.webview.cspSource,
       brandFonts(this.panel.webview, this.extensionUri),
-      brandTheme()
+      brandTheme(),
+      this.tab
     );
   }
 
@@ -105,6 +123,11 @@ export class Dashboard {
   }
 }
 
-function isWindowName(value: string | undefined): value is WindowName {
-  return value === "week" || value === "month" || value === "quarter" || value === "year";
+/**
+ * Shape-checked before it reaches the model: the webview is untrusted input.
+ * Round-tripped rather than pattern-matched, so `2026-99-99` is rejected
+ * instead of rolling over into a nonsense label.
+ */
+function isDayKey(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && keyOf(dateOf(value)) === value;
 }

@@ -1,0 +1,125 @@
+/* Mockup-only stylesheet. Simulates the VS Code surfaces the real panels take
+   from the theme, plus the real Dev Labs brand tokens. */
+:root {
+  --accent: #f47c20;
+  --accent-strong: #d9660c;
+  --ink: #0e0e10;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+  --gap: 16px;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* dark, the default */
+  --bg: #1f1f1f;
+  --panel: #252526;
+  --panel-2: #2d2d30;
+  --fg: #cccccc;
+  --fg-strong: #ffffff;
+  --muted: #8b8b8b;
+  --border: #3a3a3c;
+}
+html[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f3f3f3;
+  --panel-2: #ececec;
+  --fg: #313131;
+  --fg-strong: #111111;
+  --muted: #6a6a6a;
+  --border: #dcdcdc;
+  --accent-text: var(--accent-strong);
+}
+:root { --accent-text: var(--accent); }
+
+:root {
+  --heat-0: color-mix(in srgb, var(--fg) 11%, transparent);
+  --heat-1: color-mix(in srgb, var(--accent) 24%, transparent);
+  --heat-2: color-mix(in srgb, var(--accent) 46%, transparent);
+  --heat-3: color-mix(in srgb, var(--accent) 70%, transparent);
+  --heat-4: var(--accent);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+h1 { font-size: 22px; color: var(--fg-strong); }
+h2 { font-size: 13px; }
+p { margin: 0; }
+a { color: var(--accent-text); }
+.mono { font-family: var(--font-mono); letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 11.5px; }
+.up { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--gap);
+}
+
+/* --- shell ------------------------------------------------------------- */
+.shell { max-width: 1080px; margin: 0 auto; }
+.topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.logo {
+  width: 26px; height: 26px; border-radius: 7px; flex: none;
+  background: var(--accent); color: var(--ink);
+  display: grid; place-items: center; font-weight: 700; font-size: 14px;
+}
+.spacer { flex: 1; }
+.tabs { display: inline-flex; gap: 2px; background: var(--panel-2); padding: 3px; border-radius: var(--radius-full); }
+.tabs button {
+  font: inherit; font-size: 11.5px; color: var(--muted); background: none; border: 0;
+  padding: 4px 12px; border-radius: var(--radius-full); cursor: pointer;
+}
+.tabs button[aria-pressed="true"] { background: var(--accent); color: var(--ink); font-weight: 600; }
+.btn {
+  font: inherit; font-size: 11.5px; color: var(--fg); background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: var(--radius-full); padding: 5px 12px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent-text); }
+
+/* --- heatmap ----------------------------------------------------------- */
+.heat { display: flex; gap: 8px; }
+.heat-gutter { display: grid; grid-template-rows: repeat(7, var(--cell, 13px)); gap: var(--cellgap, 3px); font-size: 9.5px; color: var(--muted); }
+.heat-gutter span { line-height: var(--cell, 13px); }
+.heat-body { overflow-x: auto; }
+.heat-months { display: grid; font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.heat-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, var(--cell, 13px)); gap: var(--cellgap, 3px); }
+.cell { width: var(--cell, 13px); height: var(--cell, 13px); border-radius: 2px; background: var(--heat-0); }
+.cell[data-level="1"] { background: var(--heat-1); }
+.cell[data-level="2"] { background: var(--heat-2); }
+.cell[data-level="3"] { background: var(--heat-3); }
+.cell[data-level="4"] { background: var(--heat-4); }
+.cell.filler { background: none; }
+.cell.today { outline: 1.5px solid var(--fg); outline-offset: 1px; }
+.legend { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 10.5px; color: var(--muted); flex-wrap: wrap; }
+.legend .stop { display: inline-flex; align-items: center; gap: 5px; }
+
+/* --- bars -------------------------------------------------------------- */
+.bars { display: grid; gap: 8px; }
+.bar-row { display: grid; grid-template-columns: 1fr; gap: 3px; }
+.bar-row .top { display: flex; justify-content: space-between; gap: 8px; }
+.bar { height: 5px; border-radius: var(--radius-full); background: var(--heat-0); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+
+/* --- tables ------------------------------------------------------------ */
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; }
+td.num, th.num { text-align: right; }
+tbody tr:hover { background: var(--panel-2); }
+tfoot th { border-bottom: 0; color: var(--fg-strong); font-size: 12px; text-transform: none; letter-spacing: 0; }
+
+/* --- theme toggle ------------------------------------------------------ */
+.themer { position: fixed; right: 14px; bottom: 14px; z-index: 9; }

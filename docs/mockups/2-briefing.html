@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>2 · Briefing</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .shell { max-width: 900px; }
+  .brief { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+           border-radius: var(--radius); padding: 18px 20px; margin-bottom: var(--gap); }
+  .brief p { font-size: 15px; line-height: 1.65; }
+  .brief b { color: var(--fg-strong); }
+  .grid { display: grid; gap: var(--gap); }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .card > h2 { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .card > .why { color: var(--muted); font-size: 11.5px; margin-bottom: 14px; }
+  .months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .month-name { margin-bottom: 6px; }
+  .month-dow, .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .month-dow span { text-align: center; font-size: 9.5px; color: var(--muted); }
+  .mcell { aspect-ratio: 1; border-radius: 3px; background: var(--heat-0); display: grid; place-items: center;
+           font-size: 9.5px; color: color-mix(in srgb, var(--fg) 55%, transparent); }
+  .mcell[data-level="3"], .mcell[data-level="4"] { color: var(--ink); font-weight: 600; }
+  .mcell[data-level="1"] { background: var(--heat-1); }
+  .mcell[data-level="2"] { background: var(--heat-2); }
+  .mcell[data-level="3"] { background: var(--heat-3); }
+  .mcell[data-level="4"] { background: var(--heat-4); }
+  .mcell.empty, .mcell.future { background: none; color: color-mix(in srgb, var(--fg) 20%, transparent); }
+  .mcell.today { outline: 1.5px solid var(--fg); outline-offset: 1px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 14px; }
+  .facts b { display: block; font-size: 18px; color: var(--fg-strong); }
+  .repo { padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .repo:last-child { border-bottom: 0; }
+  .repo-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .fold { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); padding: 2px 0 2px 14px; }
+  @media (max-width: 780px) { .g2, .g3, .months { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="logo">A</div>
+    <h1>This month</h1>
+    <div class="spacer"></div>
+    <div class="tabs"><button>Week</button><button aria-pressed="true">Month</button><button>Quarter</button><button>Year</button></div>
+    <button class="btn">Export CSV</button>
+  </div>
+
+  <div class="brief">
+    <p>You worked <b>48h 22m</b> across <b>14 days</b> in August, mostly in <b>TypeScript</b> inside <b>almanac</b>.
+    Your streak is <b>9 days</b> and your best ever is 31. You are sharpest around <b>14:00</b>,
+    and about <b>38%</b> of the text in your files arrived in blocks rather than keystrokes.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:var(--gap)">
+    <h2>Activity <span class="muted small">last three months</span></h2>
+    <p class="why">Every square is a day. Darker is more time. Hover for the exact figure.</p>
+    <div class="months" id="months"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="grid g3" style="margin-bottom:var(--gap)">
+    <div class="card">
+      <h2>Languages</h2>
+      <p class="why">Time with a file of that type in front of you.</p>
+      <div class="bars" id="langs"></div>
+    </div>
+    <div class="card">
+      <h2>Where the time came from</h2>
+      <p class="why">Terminal counts the same as editor.</p>
+      <div class="bars" id="signals"></div>
+    </div>
+    <div class="card">
+      <h2>When you work</h2>
+      <p class="why">Busiest hour: 14:00.</p>
+      <div class="bars" id="hours"></div>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-bottom:var(--gap)">
+    <div class="card">
+      <h2>Repositories</h2>
+      <p class="why">Time rolls up to the repository. Folders beneath are the workspace folders you opened.</p>
+      <div id="repos"></div>
+    </div>
+    <div class="grid" style="gap:var(--gap)">
+      <div class="card">
+        <h2>Counted</h2>
+        <p class="why">The raw tallies behind everything above.</p>
+        <div class="facts">
+          <div><b class="mono">74</b><span class="muted small">commits</span></div>
+          <div><b class="mono">386</b><span class="muted small">files</span></div>
+          <div><b class="mono">1,204</b><span class="muted small">saves</span></div>
+          <div><b class="mono">61</b><span class="muted small">sessions</span></div>
+          <div><b class="mono">18,422</b><span class="muted small">edits</span></div>
+          <div><b class="mono">3h 42m</b><span class="muted small">average day</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Milestones</h2>
+        <p class="why">Next one up on each track.</p>
+        <div class="bars" id="miles"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Billing</h2>
+    <p class="why">Repository time mapped to clients, rounded up to 15m per client per day.</p>
+    <table>
+      <thead><tr><th>Client</th><th>Repositories</th><th class="num">Days</th><th class="num">Tracked</th><th class="num">Billable</th><th class="num">Hours</th></tr></thead>
+      <tbody id="clients"></tbody>
+      <tfoot><tr><th>Total</th><th></th><th class="num mono">14</th><th class="num mono">44h 11m</th><th class="num mono">46h 30m</th><th class="num mono">46.50</th></tr></tfoot>
+    </table>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="render.js"></script>
+<script>
+  var A = ALMANAC;
+  R.monthGrid(document.getElementById("months"), 3);
+  R.legend(document.getElementById("legend"));
+  R.bars(document.getElementById("langs"), A.languages);
+  R.bars(document.getElementById("signals"), A.signals);
+  R.bars(document.getElementById("hours"), A.hours24.filter(function (h) { return h.hour % 2 === 0; }).map(function (h) {
+    return { label: String(h.hour).padStart(2, "0") + ":00", seconds: h.seconds, share: h.share };
+  }));
+  R.bars(document.getElementById("miles"), A.milestones.map(function (m) {
+    return { label: m.label, share: m.progress, seconds: 0, right: m.value + " / " + m.next };
+  }), { right: function (r) { return r.right; } });
+  document.getElementById("repos").innerHTML = A.repositories.map(function (repo) {
+    return '<div class="repo"><div class="repo-head"><span><b>' + repo.repo + '</b></span><span class="mono small">' +
+      A.fmt(repo.total) + '</span></div><div class="bar"><i style="width:' + (repo.share * 100) + '%"></i></div>' +
+      '<div class="fold"><span>repository root</span><span class="mono">' + A.fmt(repo.root) + "</span></div>" +
+      repo.folders.map(function (f) {
+        return '<div class="fold" style="padding-left:' + (14 + f.depth * 14) + 'px"><span>' + f.name +
+          '</span><span class="mono">' + A.fmt(f.total) + "</span></div>";
+      }).join("") + "</div>";
+  }).join("");
+  document.getElementById("clients").innerHTML = A.clients.map(function (c) {
+    return "<tr><td><b>" + c.client + '</b></td><td class="muted small">' + c.repos.join(", ") +
+      '</td><td class="num mono">' + c.days + '</td><td class="num mono">' + A.fmt(c.seconds) +
+      '</td><td class="num mono">' + A.fmt(c.billable) + '</td><td class="num mono">' + A.hours(c.billable) + "</td></tr>";
+  }).join("");
+</script>
+</body>
+</html>

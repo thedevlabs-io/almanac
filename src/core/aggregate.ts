@@ -1,5 +1,5 @@
 import { mergeComposition, type Composition, emptyComposition } from "./composition";
-import { keyOf, range, shift, type DayKey } from "./day";
+import { keyOf, range, shift, weekdayOf, type DayKey } from "./day";
 import { mergeProjectRecord, treesFor, type ProjectRecord, type RepoTree } from "./project";
 import type { DayRecord } from "./types";
 
@@ -168,6 +168,62 @@ export function punchcard(totals: Totals): Punchcard {
   const busiest = totals.hours.reduce((max, seconds) => Math.max(max, seconds), 0);
   const peakHour = busiest === 0 ? undefined : totals.hours.indexOf(busiest);
   return { hours: totals.hours, busiest, peakHour };
+}
+
+/**
+ * Seconds per weekday per local hour: 7 rows of 24, Monday first.
+ *
+ * No new storage backs this. A day already keeps its 24 hour buckets and knows
+ * its own date, so the weekday is arithmetic, not a recorded fact. Which
+ * matters: the shape of a working week is exactly the kind of thing Almanac
+ * must be able to show without keeping a timeline of when you touched a key.
+ */
+export interface WeekHours {
+  /** `rows[weekday][hour]`, Monday 0, matching the heatmap's row order. */
+  rows: number[][];
+  /** The busiest single cell, which is what shades are cut against. */
+  busiest: number;
+  /** Total seconds per weekday, Monday 0. */
+  weekdayTotals: number[];
+  /** The weekday with the most time. Undefined when nothing was tracked. */
+  busiestWeekday?: number;
+}
+
+export function weekHours(
+  days: Record<DayKey, DayRecord>,
+  from: DayKey,
+  to: DayKey
+): WeekHours {
+  const rows = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
+  const weekdayTotals = new Array<number>(7).fill(0);
+  for (const date of range(from, to)) {
+    const day = days[date];
+    if (!day) {
+      continue;
+    }
+    const row = rows[weekdayOf(date)];
+    if (!row) {
+      continue;
+    }
+    for (let hour = 0; hour < 24; hour += 1) {
+      const seconds = day.hours[hour] ?? 0;
+      row[hour] = (row[hour] ?? 0) + seconds;
+      weekdayTotals[weekdayOf(date)] = (weekdayTotals[weekdayOf(date)] ?? 0) + seconds;
+    }
+  }
+  let busiest = 0;
+  for (const row of rows) {
+    for (const seconds of row) {
+      busiest = Math.max(busiest, seconds);
+    }
+  }
+  const busiestTotal = weekdayTotals.reduce((max, seconds) => Math.max(max, seconds), 0);
+  return {
+    rows,
+    busiest,
+    weekdayTotals,
+    busiestWeekday: busiestTotal === 0 ? undefined : weekdayTotals.indexOf(busiestTotal),
+  };
 }
 
 /** The window a dashboard shows by default: the last year, ending today. */
