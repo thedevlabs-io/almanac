@@ -1,237 +1,168 @@
-// ABOUTME: Rollups from daily records into everything the dashboard shows.
-// ABOUTME: Pure, so the numbers on screen are exactly what the tests pin down.
+import { mergeComposition, type Composition, emptyComposition } from "./composition";
+import { keyOf, range, shift, type DayKey } from "./day";
+import { mergeProjectRecord, treesFor, type ProjectRecord, type RepoTree } from "./project";
+import type { DayRecord } from "./types";
 
-import { addDays, daysBetween, range, weekday } from "./day";
-import { languageName } from "./format";
-import { qualifyingDays, streakOf, type Streak } from "./streaks";
-import type { DayKey, DayRecord } from "./types";
-import { emptyComposition, insertedShare, type Composition } from "./composition";
-
+/** A heatmap cell. Level 0 to 4, the scale every contribution graph uses. */
 export interface HeatCell {
   date: DayKey;
   seconds: number;
-  /** 0 (nothing) to 4 (busiest band), for the heatmap's five shades. */
-  level: number;
-}
-
-export interface LanguageStat {
-  id: string;
-  name: string;
-  seconds: number;
-  /** Days this language was touched at all. */
-  days: number;
-  streak: Streak;
-}
-
-export interface ProjectStat {
-  name: string;
-  seconds: number;
-  days: number;
-}
-
-export interface Summary {
-  today: number;
-  week: number;
-  month: number;
-  total: number;
-  daysTracked: number;
-  daysQualifying: number;
-  streak: Streak;
-  best?: { date: DayKey; seconds: number };
-  languages: LanguageStat[];
-  projects: ProjectStat[];
-  /** [weekday][hour] in seconds — 7 rows of 24. */
-  punchcard: number[][];
-  heatmap: HeatCell[];
-  totals: { edits: number; saves: number; files: number; sessions: number; commits: number };
-  commitsByDay: Record<DayKey, number>;
-  composition: Composition;
-  /** Share of written characters that arrived in blocks; undefined when nothing has. */
-  insertedShare?: number;
-  firstDay?: DayKey;
-}
-
-function sum(values: number[]): number {
-  return values.reduce((a, b) => a + b, 0);
+  level: 0 | 1 | 2 | 3 | 4;
 }
 
 /**
- * Five bands from the non-zero days, so the heatmap adapts to how much you
- * actually work — a fixed scale would show one shade for a light user and one
- * for a heavy one.
+ * Levels are cut against the busiest day in the window rather than fixed hour
+ * counts. A fixed scale makes a part-time user's graph uniformly cold and a
+ * full-time user's uniformly hot, and in both cases it stops saying anything.
  */
-export function levelsFor(values: number[]): (seconds: number) => number {
-  const active = values.filter((v) => v > 0).sort((a, b) => a - b);
-  if (active.length === 0) {
-    return () => 0;
+export function heatLevel(seconds: number, busiest: number): HeatCell["level"] {
+  if (seconds <= 0) {
+    return 0;
   }
-  // Index across (n-1) so the busiest day always lands in the top band; indexing
-  // across n puts the maximum on the last boundary and level 4 goes unused.
-  const at = (q: number): number => active[Math.floor((active.length - 1) * q)];
-  const bands = [at(0.25), at(0.5), at(0.75)];
-  return (seconds: number): number => {
-    if (seconds <= 0) {
-      return 0;
-    }
-    if (seconds <= bands[0]) {
-      return 1;
-    }
-    if (seconds <= bands[1]) {
-      return 2;
-    }
-    if (seconds <= bands[2]) {
-      return 3;
-    }
-    return 4;
-  };
-}
-
-function totalsOf(records: DayRecord[]): Summary["totals"] {
-  return {
-    edits: sum(records.map((r) => r.edits)),
-    saves: sum(records.map((r) => r.saves)),
-    files: sum(records.map((r) => r.files)),
-    sessions: sum(records.map((r) => r.sessions)),
-    commits: sum(records.map((r) => r.commits ?? 0)),
-  };
-}
-
-function languageStats(records: DayRecord[], today: DayKey, minSeconds: number): LanguageStat[] {
-  const seconds = new Map<string, number>();
-  const days = new Map<string, DayKey[]>();
-
-  for (const record of records) {
-    for (const [id, value] of Object.entries(record.languages)) {
-      if (value <= 0) {
-        continue;
-      }
-      seconds.set(id, (seconds.get(id) ?? 0) + value);
-      const list = days.get(id) ?? [];
-      // A language's streak uses the same bar as the day streak, so "5 days of
-      // Rust" means five days you actually worked in it, not five days it was open.
-      if (value >= minSeconds) {
-        list.push(record.date);
-      }
-      days.set(id, list);
-    }
+  if (busiest <= 0) {
+    return 1;
   }
-
-  return [...seconds.entries()]
-    .map(([id, total]) => ({
-      id,
-      name: languageName(id),
-      seconds: total,
-      days: (days.get(id) ?? []).length,
-      streak: streakOf(days.get(id) ?? [], today),
-    }))
-    .sort((a, b) => b.seconds - a.seconds);
-}
-
-function projectStats(records: DayRecord[]): ProjectStat[] {
-  const seconds = new Map<string, number>();
-  const days = new Map<string, number>();
-  for (const record of records) {
-    for (const [name, value] of Object.entries(record.projects)) {
-      if (value <= 0) {
-        continue;
-      }
-      seconds.set(name, (seconds.get(name) ?? 0) + value);
-      days.set(name, (days.get(name) ?? 0) + 1);
-    }
+  const share = seconds / busiest;
+  if (share <= 0.25) {
+    return 1;
   }
-  return [...seconds.entries()]
-    .map(([name, total]) => ({ name, seconds: total, days: days.get(name) ?? 0 }))
-    .sort((a, b) => b.seconds - a.seconds);
-}
-
-function punchcardOf(records: DayRecord[]): number[][] {
-  const grid = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
-  for (const record of records) {
-    const row = weekday(record.date);
-    record.hours.forEach((value, hour) => {
-      grid[row][hour] += value;
-    });
+  if (share <= 0.5) {
+    return 2;
   }
-  return grid;
+  return share <= 0.75 ? 3 : 4;
 }
 
-export interface SummaryOptions {
-  today: DayKey;
-  /** Seconds a day needs to count towards a streak. */
-  minSeconds: number;
-  /** How many days the heatmap covers, ending today. */
-  heatmapDays: number;
-}
-
-export function summarize(days: Record<DayKey, DayRecord>, options: SummaryOptions): Summary {
-  const records = Object.values(days).sort((a, b) => a.date.localeCompare(b.date));
-  const byDate = new Map(records.map((r) => [r.date, r]));
-  const { today, minSeconds, heatmapDays } = options;
-
-  const heatFrom = addDays(today, -(heatmapDays - 1));
-  const heatDays = range(heatFrom, today);
-  const level = levelsFor(heatDays.map((key) => byDate.get(key)?.activeSeconds ?? 0));
-  const heatmap: HeatCell[] = heatDays.map((date) => {
-    const seconds = byDate.get(date)?.activeSeconds ?? 0;
-    return { date, seconds, level: level(seconds) };
+export function heatmap(days: Record<DayKey, DayRecord>, from: DayKey, to: DayKey): HeatCell[] {
+  const window = range(from, to);
+  const busiest = window.reduce((max, date) => Math.max(max, days[date]?.activeSeconds ?? 0), 0);
+  return window.map((date) => {
+    const seconds = days[date]?.activeSeconds ?? 0;
+    return { date, seconds, level: heatLevel(seconds, busiest) };
   });
+}
 
-  const since = (from: DayKey): number =>
-    sum(records.filter((r) => daysBetween(from, r.date) >= 0).map((r) => r.activeSeconds));
+export interface Slice {
+  key: string;
+  seconds: number;
+  /** Share of the total, 0 to 1. */
+  share: number;
+}
 
-  const best = records.reduce<Summary["best"]>((top, r) => {
-    if (r.activeSeconds <= 0) {
-      return top;
-    }
-    return !top || r.activeSeconds > top.seconds ? { date: r.date, seconds: r.activeSeconds } : top;
-  }, undefined);
+function slices(totals: Record<string, number>, limit?: number): Slice[] {
+  const sum = Object.values(totals).reduce((total, seconds) => total + seconds, 0);
+  const sorted = Object.entries(totals)
+    .filter(([, seconds]) => seconds > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([key, seconds]) => ({ key, seconds, share: sum === 0 ? 0 : seconds / sum }));
+  return limit === undefined ? sorted : sorted.slice(0, limit);
+}
 
-  const qualifying = qualifyingDays(records, minSeconds);
-  const composition = records.reduce<Composition>((total, record) => {
-    const day = record.composition ?? emptyComposition();
-    return {
-      typedChars: total.typedChars + day.typedChars,
-      insertedChars: total.insertedChars + day.insertedChars,
-      removedChars: total.removedChars + day.removedChars,
-    };
-  }, emptyComposition());
-  const commitsByDay: Record<DayKey, number> = {};
-  for (const record of records) {
-    if (record.commits) {
-      commitsByDay[record.date] = record.commits;
-    }
-  }
+export interface Totals {
+  seconds: number;
+  languages: Record<string, number>;
+  projects: Record<string, ProjectRecord>;
+  signals: Record<string, number>;
+  hours: number[];
+  edits: number;
+  saves: number;
+  files: number;
+  sessions: number;
+  commits: number;
+  composition: Composition;
+  /** Days in the window with any tracked time at all. */
+  activeDays: number;
+}
 
+export function emptyTotals(): Totals {
   return {
-    today: byDate.get(today)?.activeSeconds ?? 0,
-    week: since(addDays(today, -6)),
-    month: since(addDays(today, -29)),
-    total: sum(records.map((r) => r.activeSeconds)),
-    daysTracked: records.filter((r) => r.activeSeconds > 0).length,
-    daysQualifying: qualifying.length,
-    streak: streakOf(qualifying, today),
-    best,
-    languages: languageStats(records, today, minSeconds),
-    projects: projectStats(records),
-    punchcard: punchcardOf(records),
-    heatmap,
-    totals: totalsOf(records),
-    commitsByDay,
-    composition,
-    insertedShare: insertedShare(composition),
-    firstDay: records.find((r) => r.activeSeconds > 0)?.date,
+    seconds: 0,
+    languages: {},
+    projects: {},
+    signals: {},
+    hours: new Array<number>(24).fill(0),
+    edits: 0,
+    saves: 0,
+    files: 0,
+    sessions: 0,
+    commits: 0,
+    composition: emptyComposition(),
+    activeDays: 0,
   };
 }
 
-/** Per-language heatmap cells, for the small grids under each language. */
-export function languageHeatmap(
+/** Sum a window of days into one set of totals. */
+export function totalsFor(
   days: Record<DayKey, DayRecord>,
-  languageId: string,
   from: DayKey,
   to: DayKey
-): HeatCell[] {
-  const keys = range(from, to);
-  const values = keys.map((key) => days[key]?.languages[languageId] ?? 0);
-  const level = levelsFor(values);
-  return keys.map((date, i) => ({ date, seconds: values[i], level: level(values[i]) }));
+): Totals {
+  const totals = emptyTotals();
+  for (const date of range(from, to)) {
+    const day = days[date];
+    if (!day) {
+      continue;
+    }
+    totals.seconds += day.activeSeconds;
+    totals.edits += day.edits;
+    totals.saves += day.saves;
+    totals.files += day.files;
+    totals.sessions += day.sessions;
+    totals.commits += day.commits ?? 0;
+    totals.composition = mergeComposition(totals.composition, day.composition ?? emptyComposition());
+    if (day.activeSeconds > 0) {
+      totals.activeDays += 1;
+    }
+    for (const [language, seconds] of Object.entries(day.languages)) {
+      totals.languages[language] = (totals.languages[language] ?? 0) + seconds;
+    }
+    for (const [kind, seconds] of Object.entries(day.signals ?? {})) {
+      totals.signals[kind] = (totals.signals[kind] ?? 0) + seconds;
+    }
+    for (const [repo, record] of Object.entries(day.projects ?? {})) {
+      const existing = totals.projects[repo];
+      totals.projects[repo] = existing ? mergeProjectRecord(existing, record) : record;
+    }
+    for (let hour = 0; hour < 24; hour += 1) {
+      totals.hours[hour] = (totals.hours[hour] ?? 0) + (day.hours[hour] ?? 0);
+    }
+  }
+  return totals;
 }
+
+export function topLanguages(totals: Totals, limit = 8): Slice[] {
+  return slices(totals.languages, limit);
+}
+
+export function signalSplit(totals: Totals): Slice[] {
+  return slices(totals.signals);
+}
+
+/** Repository trees for the window, busiest first. */
+export function repositories(totals: Totals): RepoTree[] {
+  return treesFor(totals.projects);
+}
+
+/** Seconds per local hour, plus the busiest hour, for the punchcard. */
+export interface Punchcard {
+  hours: number[];
+  busiest: number;
+  peakHour?: number;
+}
+
+export function punchcard(totals: Totals): Punchcard {
+  const busiest = totals.hours.reduce((max, seconds) => Math.max(max, seconds), 0);
+  const peakHour = busiest === 0 ? undefined : totals.hours.indexOf(busiest);
+  return { hours: totals.hours, busiest, peakHour };
+}
+
+/** The window a dashboard shows by default: the last year, ending today. */
+export function defaultWindow(today = keyOf(new Date())): { from: DayKey; to: DayKey } {
+  return { from: shift(today, -364), to: today };
+}
+
+/** Mean seconds per day over days that had any activity. Zero when none did. */
+export function averageActiveDay(totals: Totals): number {
+  return totals.activeDays === 0 ? 0 : Math.round(totals.seconds / totals.activeDays);
+}
+
+export { slices };

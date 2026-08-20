@@ -1,37 +1,51 @@
-// ABOUTME: The tracking settings, read once and refreshed on change.
-// ABOUTME: Selection and scroll events fire many times a second — too often to re-read configuration.
-
 import * as vscode from "vscode";
-import { DEFAULT_IDLE_MINUTES, idleWindowMs } from "../core/activityClock";
+import { DEFAULT_IDLE_MINUTES, idleWindowMs } from "../core/presence";
+import type { Rounding } from "../core/report";
 
 export interface Settings {
   enabled: boolean;
-  trackProjects: boolean;
-  trackTerminal: boolean;
-  trackDebug: boolean;
   idleMs: number;
+  countTerminal: boolean;
+  countDebug: boolean;
+  trackProjects: boolean;
+  trackGitCommits: boolean;
+  statusBar: boolean;
+  streakMinMinutes: number;
+  retentionDays: number;
+  clients: Record<string, string>;
+  rounding: Rounding;
 }
 
 export function readSettings(): Settings {
-  const config = vscode.workspace.getConfiguration();
+  const config = vscode.workspace.getConfiguration("almanac");
   return {
-    enabled: config.get<boolean>("almanac.tracking.enabled", true),
-    trackProjects: config.get<boolean>("almanac.trackProjects", true),
-    trackTerminal: config.get<boolean>("almanac.trackTerminal", true),
-    trackDebug: config.get<boolean>("almanac.trackDebug", true),
-    idleMs: idleWindowMs(config.get<number>("almanac.idleMinutes", DEFAULT_IDLE_MINUTES)),
+    enabled: config.get<boolean>("enabled", true),
+    idleMs: idleWindowMs(config.get<number>("idleMinutes", DEFAULT_IDLE_MINUTES)),
+    countTerminal: config.get<boolean>("countTerminal", true),
+    countDebug: config.get<boolean>("countDebug", true),
+    trackProjects: config.get<boolean>("trackProjects", true),
+    trackGitCommits: config.get<boolean>("trackGitCommits", true),
+    statusBar: config.get<boolean>("statusBar.enabled", true),
+    streakMinMinutes: config.get<number>("streak.minMinutes", 5),
+    retentionDays: config.get<number>("retentionDays", 730),
+    clients: config.get<Record<string, string>>("clients", {}),
+    rounding: config.get<Rounding>("report.rounding", "none"),
   };
 }
 
-/** Holds the current settings so hot event paths read a field, not configuration. */
+/** Holds current settings so hot event paths read a field rather than configuration. */
 export class SettingsCache {
   private value = readSettings();
+  private readonly emitter = new vscode.EventEmitter<Settings>();
   private readonly subscription: vscode.Disposable;
 
+  readonly onDidChange = this.emitter.event;
+
   constructor() {
-    this.subscription = vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("almanac")) {
+    this.subscription = vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("almanac")) {
         this.value = readSettings();
+        this.emitter.fire(this.value);
       }
     });
   }
@@ -42,5 +56,6 @@ export class SettingsCache {
 
   dispose(): void {
     this.subscription.dispose();
+    this.emitter.dispose();
   }
 }

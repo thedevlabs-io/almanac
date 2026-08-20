@@ -1,52 +1,59 @@
-// ABOUTME: Local calendar-day arithmetic — the key format, and walking days backwards.
-// ABOUTME: Everything is local time on purpose: a streak should break at your midnight, not UTC's.
+/** A local calendar day, `YYYY-MM-DD`. */
+export type DayKey = string;
 
-import type { DayKey } from "./types";
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-function pad(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
+function pad(value: number): string {
+  return value < 10 ? `0${value}` : String(value);
 }
 
+/** The local calendar day a moment falls in. */
 export function keyOf(date: Date): DayKey {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function parseKey(key: DayKey): Date {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(y, m - 1, d);
+/** Midnight local time on the given day. Parsed by hand so no timezone is guessed. */
+export function dateOf(key: DayKey): Date {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1);
 }
 
-export function addDays(key: DayKey, delta: number): DayKey {
-  const date = parseKey(key);
-  date.setDate(date.getDate() + delta);
+/** The day `count` days after `key`. Negative counts go backwards. */
+export function shift(key: DayKey, count: number): DayKey {
+  const date = dateOf(key);
+  date.setDate(date.getDate() + count);
   return keyOf(date);
 }
 
-/** Whole days between two keys — negative when `to` is earlier than `from`. */
+/**
+ * Whole days between two keys. Both are normalised to local midnight first, so
+ * a daylight-saving change cannot turn one day into 0.958 of one.
+ */
 export function daysBetween(from: DayKey, to: DayKey): number {
-  const ms = parseKey(to).getTime() - parseKey(from).getTime();
-  return Math.round(ms / 86_400_000);
+  return Math.round((dateOf(to).getTime() - dateOf(from).getTime()) / MS_PER_DAY);
 }
 
-/** Every day from `from` to `to` inclusive, oldest first. */
+/** Every day from `from` to `to` inclusive, ascending. */
 export function range(from: DayKey, to: DayKey): DayKey[] {
-  const out: DayKey[] = [];
-  for (let key = from; daysBetween(key, to) >= 0; key = addDays(key, 1)) {
-    out.push(key);
+  const days: DayKey[] = [];
+  const total = daysBetween(from, to);
+  for (let i = 0; i <= total; i += 1) {
+    days.push(shift(from, i));
   }
-  return out;
+  return days;
 }
 
-/** 0 = Sunday, matching the heatmap's rows. */
-export function weekday(key: DayKey): number {
-  return parseKey(key).getDay();
+/** Day of week with Monday as 0, matching how a heatmap column is read. */
+export function weekdayOf(key: DayKey): number {
+  return (dateOf(key).getDay() + 6) % 7;
 }
 
-export function isWeekend(key: DayKey): boolean {
-  const day = weekday(key);
-  return day === 0 || day === 6;
+/** The Monday on or before `key`. */
+export function startOfWeek(key: DayKey): DayKey {
+  return shift(key, -weekdayOf(key));
 }
 
-export function monthName(key: DayKey): string {
-  return parseKey(key).toLocaleDateString(undefined, { month: "short" });
+/** The first day of `key`'s month. */
+export function startOfMonth(key: DayKey): DayKey {
+  return `${key.slice(0, 7)}-01`;
 }

@@ -1,196 +1,278 @@
-// ABOUTME: Decides what counts as a human being present — the only thing that opens the clock.
-// ABOUTME: Records nothing and touches no store: it answers "is someone here?", not "what did they do?".
-
 import * as vscode from "vscode";
-import { isHumanScroll, withinIdle, type ClockState } from "../core/activityClock";
-import { classify } from "../core/composition";
+import {
+  initialState,
+  isHumanScroll,
+  type PresenceState,
+  type SignalKind,
+  type SignalSource,
+} from "../core/presence";
 import type { SettingsCache } from "./settings";
 
 /**
- * Every signal here has to be something a person did. The hard cases are the
- * ones a machine can fake — an agent writing to the file you left open, an
- * extension running a command in a terminal it opened for you — and each is
- * excluded at the point it arrives rather than after the fact.
+ * What Almanac can observe about a person being present.
  *
- * Saving is deliberately not a signal. `TextDocumentSaveReason.Manual` covers
- * "by an API call" as well as your Ctrl+S, so an agent that saves what it wrote
- * is indistinguishable from you saving it — and a save you made yourself is
- * always preceded by the typing that made it worth saving, which already counts.
+ * The human tier is `vscode.window.state.active`, VS Code's own answer to "has
+ * this window been interacted with recently", plus editor selections whose
+ * `kind` is specifically `Keyboard` or `Mouse`. That is deliberately narrow:
+ * `state.active` already sees keystrokes in the terminal, the Simple Browser,
+ * webviews and the settings editor, none of which reach an extension any other
+ * way, so nothing else needs to be trusted to prove a person is here.
+ *
+ * Everything else is machine evidence. An agent writing to the file you have
+ * open, a watch task restarting, a debugger landing on a frame in a crash loop,
+ * output from a command: each is real evidence that work is happening, and none
+ * of it proves you are in the chair. Those extend a clock a person opened and
+ * never open one, which is what bounds how long a `tail -f` in a focused window
+ * can keep counting.
  */
 export class InputSignals {
-  private focused = vscode.window.state.focused;
-  // Zero, not now: opening a window is not working in it. The clock stays shut
-  // until something actually happens, so a window restored on login and left
-  // alone credits nothing.
-  private lastInput = 0;
-  /** The last signal that came from a keyboard, mouse or trackpad specifically. */
-  private lastDevice = 0;
-  /** When a document last changed, to tell a human scroll from an edit's reflow. */
+  private state: PresenceState = initialState(vscode.window.state.focused);
   private lastEdit = 0;
-  /** Where the active editor was last seen, to tell a scroll from a resize. */
   private viewport: { uri: string; top: number } | undefined;
+  private disposed = false;
+  /** Live output readers, so dispose can stop consuming rather than leak them. */
+  private readonly readers = new Set<AbortController>();
   private readonly subscriptions: vscode.Disposable[] = [];
 
   constructor(private readonly settings: SettingsCache) {}
 
-  /** What the clock needs to know, and all it needs to know. */
-  get state(): ClockState {
-    return { focused: this.focused, lastInput: this.lastInput };
+  get presence(): PresenceState {
+    return this.state;
   }
 
-  /** A keyboard or pointer did this. Only these can open the clock. */
-  private note(): void {
+  private signal(kind: SignalKind, source: SignalSource): void {
+    if (this.disposed || !this.settings.current.enabled) {
+      return;
+    }
     const now = Date.now();
-    this.lastInput = now;
-    this.lastDevice = now;
+    this.state = {
+      ...this.state,
+      lastSignal: now,
+      lastHuman: source === "human" ? now : this.state.lastHuman,
+      lastKind: kind,
+    };
   }
 
   /**
-   * A terminal or debugger did this, and neither can prove a person did it: an
-   * agent shows its terminal, so it becomes the active one, and a crash loop
-   * lands on a stack frame like a step does. So these may only hold open a clock
-   * a keyboard or pointer already opened — never start one. That bounds what a
-   * machine can claim to one idle window past the last thing you actually did.
+   * Called once per tick. Polled rather than subscribed because between its own
+   * transitions `state.active` fires no event, and the stretch we most need to
+   * see is someone typing steadily in a terminal.
    */
-  private extend(): void {
-    const now = Date.now();
-    if (withinIdle(now, this.lastDevice, this.settings.current.idleMs)) {
-      this.lastInput = now;
+  sample(): void {
+    this.state = { ...this.state, focused: vscode.window.state.focused };
+    if (!vscode.window.state.active || !this.state.focused) {
+      return;
     }
+    const surface = this.activeSurface();
+    if (surface === undefined) {
+      return;
+    }
+    this.signal(surface, "human");
   }
 
-  private get enabled(): boolean {
-    return this.settings.current.enabled;
+  /**
+   * Which surface the interaction came from, or undefined when a setting says
+   * that surface should not be counted.
+   *
+   * The settings check has to happen here rather than on the label, otherwise
+   * turning off `countTerminal` would keep crediting terminal keystrokes under
+   * a different name and the setting would do nothing at all.
+   */
+  private activeSurface(): SignalKind | undefined {
+    // No text editor in front and a terminal open is as close as the API gets
+    // to "the terminal has the keyboard".
+    if (vscode.window.activeTextEditor === undefined && vscode.window.activeTerminal) {
+      return this.settings.current.countTerminal ? "terminal" : undefined;
+    }
+    if (vscode.window.activeNotebookEditor) {
+      return "notebook";
+    }
+    if (vscode.window.activeTextEditor) {
+      return "editor";
+    }
+    return "window";
   }
 
   watch(): void {
     this.subscriptions.push(
-      // Focus alone must never restart the clock: alt-tabbing in and reading for
-      // two minutes is not two minutes of work.
       vscode.window.onDidChangeWindowState((state) => {
-        this.focused = state.focused;
+        this.state = { ...this.state, focused: state.focused };
+        if (state.focused && state.active) {
+          this.signal("window", "human");
+        }
       }),
-      vscode.workspace.onDidChangeTextDocument((e) => {
-        if (!this.enabled || e.contentChanges.length === 0) {
+
+      // `Keyboard` and `Mouse` are the only kinds a person is required to have
+      // produced. `Command` covers any extension moving the cursor, which is
+      // why it is excluded rather than merely deprioritised.
+      vscode.window.onDidChangeTextEditorSelection((event) => {
+        if (
+          event.kind === vscode.TextEditorSelectionChangeKind.Keyboard ||
+          event.kind === vscode.TextEditorSelectionChangeKind.Mouse
+        ) {
+          this.signal("editor", "human");
+        }
+      }),
+
+      vscode.workspace.onDidChangeTextDocument((event) => {
+        if (event.contentChanges.length === 0) {
           return;
         }
-        // Stamped for every change, whatever the scheme and wherever it landed,
-        // because it is what tells a human scroll from an edit's own reflow.
+        // Stamped for every change wherever it landed, because it is what tells
+        // a human scroll from an edit's own reflow.
         this.lastEdit = Date.now();
-        // Only keystroke-sized edits in the editor you're looking at count as
-        // input. A formatter, a git checkout or an agent writing a file must not
-        // hold the clock open while you're away — which is precisely the case
-        // this extension has to get right, since it also measures agent edits.
-        // Typing counts wherever you type it: an untitled scratch buffer or a
-        // notebook cell is work too, even though only files are counted.
-        const inActiveEditor =
-          vscode.window.activeTextEditor?.document.uri.toString() === e.document.uri.toString();
-        if (inActiveEditor && e.contentChanges.some(isKeystroke)) {
-          this.note();
+        // Machine, not human: an agent writing to the file you have open and
+        // focused produces exactly this event, and your own typing is already
+        // covered by the selection change and by `state.active`.
+        if (
+          vscode.window.activeTextEditor?.document.uri.toString() === event.document.uri.toString()
+        ) {
+          this.signal("editor", "machine");
         }
       }),
-      // Moving the cursor is the clearest human signal there is.
-      vscode.window.onDidChangeTextEditorSelection((e) => {
-        if (this.enabled && e.kind !== undefined) {
-          this.note();
-        }
-      }),
-      // Reading is work, and reading looks like scrolling.
-      vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
-        if (e.textEditor !== vscode.window.activeTextEditor || !this.enabled) {
+
+      // Reading is work, and reading looks like scrolling. Machine, because an
+      // extension can reveal a range; a person scrolling sets `state.active`.
+      vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
+        if (event.textEditor !== vscode.window.activeTextEditor) {
           return;
         }
-        const uri = e.textEditor.document.uri.toString();
-        const top = e.visibleRanges[0]?.start.line;
+        const uri = event.textEditor.document.uri.toString();
+        const top = event.visibleRanges[0]?.start.line;
         if (top === undefined) {
           return;
         }
         const previous = this.viewport;
         this.viewport = { uri, top };
-        // A different document is a tab switch, which an extension can do too.
         if (!previous || previous.uri !== uri) {
           return;
         }
         if (isHumanScroll(Date.now(), this.lastEdit, previous.top !== top)) {
-          this.note();
+          this.signal("editor", "machine");
         }
       }),
-      // Switching tabs is not input — an extension can open a document too.
+
       vscode.window.onDidChangeActiveTextEditor(() => {
         this.viewport = undefined;
+        this.signal("editor", "machine");
       }),
-      // Running the test suite is work even though the editor never moves.
-      vscode.window.onDidChangeActiveTerminal((terminal) => {
-        if (this.enabled && this.settings.current.trackTerminal && terminal) {
-          this.extend();
-        }
-      })
+
+      vscode.window.tabGroups.onDidChangeTabs(() => this.signal("tabs", "machine")),
+      vscode.window.tabGroups.onDidChangeTabGroups(() => this.signal("tabs", "machine")),
+
+      vscode.window.onDidChangeActiveNotebookEditor(() => this.signal("notebook", "machine")),
+      // Fires on cell output too, so a long running cell printing progress is
+      // machine evidence rather than proof anyone is watching it.
+      vscode.workspace.onDidChangeNotebookDocument(() => this.signal("notebook", "machine"))
     );
 
-    this.watchShellExecutions();
-    this.watchDebugSteps();
+    this.watchTerminals();
+    this.watchDebug();
+    this.watchTasks();
   }
 
   /**
-   * Shell integration reports each command you run — the keypress the terminal
-   * itself never exposes. Three limits: only the start, because a command that
-   * outlives the idle window is the kind you started and walked away from; only
-   * in the terminal you're actually in; and only through `extend`, since an
-   * agent shows the terminal it works in and that makes it the active one.
-   * Added in VS Code 1.93, so it is probed rather than assumed — the rest still
-   * works without it.
+   * The terminal case `state.active` cannot cover: a command running for twenty
+   * minutes while you read its output and touch nothing.
+   *
+   * Only the fact that a chunk arrived is used. The chunks are discarded
+   * without being inspected, because they are your shell's output.
    */
-  private watchShellExecutions(): void {
-    if (typeof vscode.window.onDidStartTerminalShellExecution !== "function") {
-      return;
-    }
+  private watchTerminals(): void {
+    const terminal = (): boolean => this.settings.current.countTerminal;
     this.subscriptions.push(
-      vscode.window.onDidStartTerminalShellExecution((e) => {
-        if (
-          this.enabled &&
-          this.settings.current.trackTerminal &&
-          e.terminal === vscode.window.activeTerminal
-        ) {
-          this.extend();
+      vscode.window.onDidChangeActiveTerminal(() => {
+        if (terminal()) {
+          this.signal("terminal", "machine");
+        }
+      }),
+      vscode.window.onDidOpenTerminal(() => {
+        if (terminal()) {
+          this.signal("terminal", "machine");
+        }
+      }),
+      vscode.window.onDidStartTerminalShellExecution((event) => {
+        if (terminal()) {
+          this.signal("terminal", "machine");
+          void this.followOutput(event.execution);
+        }
+      }),
+      vscode.window.onDidEndTerminalShellExecution(() => {
+        if (terminal()) {
+          this.signal("terminal", "machine");
         }
       })
     );
   }
 
   /**
-   * Stepping moves no cursor and often scrolls nothing, so without this a
-   * debugging session reads as idle. The honest caveat, and why it has its own
-   * setting: a session that stops on its own — a crash loop under `restart` —
-   * lands on a new frame too, and this cannot tell that from a step. Added in
-   * VS Code 1.94, so it is probed rather than assumed.
+   * Reads a command's output stream for as long as it runs. Registered in
+   * `readers` so `dispose` can abandon a stream that never ends, which is the
+   * ordinary case for a dev server or a `tail -f`.
    */
-  private watchDebugSteps(): void {
-    if (typeof vscode.debug.onDidChangeActiveStackItem !== "function") {
-      return;
+  private async followOutput(execution: vscode.TerminalShellExecution): Promise<void> {
+    const controller = new AbortController();
+    this.readers.add(controller);
+    try {
+      for await (const chunk of execution.read()) {
+        void chunk;
+        if (controller.signal.aborted || this.disposed || !this.settings.current.countTerminal) {
+          return;
+        }
+        this.signal("terminal", "machine");
+      }
+    } catch {
+      // A stream that ends badly is not worth reporting; the command is over.
+    } finally {
+      this.readers.delete(controller);
     }
+  }
+
+  /**
+   * Stepping moves no cursor and often scrolls nothing, so a debugging session
+   * would otherwise read as idle. Machine, because a session that stops on its
+   * own, a crash loop under `restart`, lands on a new frame exactly as a step
+   * does and nothing in the API distinguishes them. Your own keypress on the
+   * step button is counted by `state.active` regardless.
+   */
+  private watchDebug(): void {
+    const debugging = (): boolean => this.settings.current.countDebug;
     this.subscriptions.push(
       vscode.debug.onDidChangeActiveStackItem((item) => {
-        if (this.enabled && this.settings.current.trackDebug && item) {
-          this.extend();
+        if (item && debugging()) {
+          this.signal("debug", "machine");
+        }
+      }),
+      vscode.debug.onDidStartDebugSession(() => {
+        if (debugging()) {
+          this.signal("debug", "machine");
+        }
+      }),
+      vscode.debug.onDidTerminateDebugSession(() => {
+        if (debugging()) {
+          this.signal("debug", "machine");
         }
       })
+    );
+  }
+
+  /** A watch task restarts on every file change, so this is machine evidence. */
+  private watchTasks(): void {
+    this.subscriptions.push(
+      vscode.tasks.onDidStartTask(() => this.signal("task", "machine")),
+      vscode.tasks.onDidEndTask(() => this.signal("task", "machine"))
     );
   }
 
   dispose(): void {
+    this.disposed = true;
+    for (const controller of this.readers) {
+      controller.abort();
+    }
+    this.readers.clear();
     for (const subscription of this.subscriptions) {
       subscription.dispose();
     }
+    this.subscriptions.length = 0;
   }
-}
-
-/** A keystroke-sized edit — the only kind of edit that proves someone is typing. */
-function isKeystroke(change: vscode.TextDocumentContentChangeEvent): boolean {
-  return (
-    classify({
-      inserted: change.text.length,
-      removed: change.rangeLength,
-      multiline: change.text.includes("\n"),
-    }) === "typed"
-  );
 }

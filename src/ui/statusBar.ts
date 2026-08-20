@@ -1,43 +1,49 @@
-// ABOUTME: The status bar item — current streak and today's active time, click to open the dashboard.
-// ABOUTME: Quiet by design: a number and a flame, no colour, no nagging.
-
 import * as vscode from "vscode";
-import { shortDuration } from "../core/format";
-import type { Summary } from "../core/aggregate";
+import { keyOf } from "../core/day";
+import { duration } from "../core/format";
+import { streaks } from "../core/streaks";
+import type { Store } from "../storage/store";
+import type { SettingsCache } from "../tracking/settings";
+import type { Explanation } from "../core/presence";
 
 export class StatusBar {
   private readonly item: vscode.StatusBarItem;
 
-  constructor() {
-    this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
+  constructor(
+    private readonly store: Store,
+    private readonly settings: SettingsCache,
+    private readonly status: () => Explanation
+  ) {
+    this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.item.command = "almanac.open";
-    this.item.name = "Almanac";
   }
 
-  update(summary: Summary, tracking: boolean): void {
-    const enabled = vscode.workspace
-      .getConfiguration()
-      .get<boolean>("almanac.statusBar.enabled", true);
-    if (!enabled) {
+  refresh(): void {
+    if (!this.settings.current.statusBar) {
       this.item.hide();
       return;
     }
+    const today = keyOf(new Date());
+    const seconds = this.store.day(today).activeSeconds;
+    const { current } = streaks(this.store.days, today, this.settings.current.streakMinMinutes);
+    const explanation = this.status();
 
-    const streak = summary.streak.current;
-    const flame = streak > 0 ? `$(flame) ${streak}` : "$(circle-large-outline)";
-    this.item.text = `${flame} · ${shortDuration(summary.today)}`;
+    const streakText = current > 0 ? ` $(flame) ${current}` : "";
+    this.item.text = `$(watch) ${duration(seconds)}${streakText}`;
     this.item.tooltip = new vscode.MarkdownString(
       [
-        tracking ? "**Almanac**" : "**Almanac** — tracking paused",
-        "",
-        streak > 0
-          ? `${streak}-day streak${summary.streak.todayCounts ? "" : " · today hasn't counted yet"}`
-          : "No streak yet",
-        `Today: ${shortDuration(summary.today)} · Last 7 days: ${shortDuration(summary.week)}`,
-        "",
-        "_Click to open the dashboard._",
-      ].join("\n")
+        `**Almanac**`,
+        ``,
+        `Today: ${duration(seconds)}`,
+        current > 0 ? `Streak: ${current} days` : `No streak yet`,
+        ``,
+        explanation.active ? `$(check) ${explanation.reason}` : `$(circle-slash) ${explanation.reason}`,
+        ``,
+        `Click to open the dashboard.`,
+      ].join("\n"),
+      true
     );
+    this.item.tooltip.supportThemeIcons = true;
     this.item.show();
   }
 

@@ -1,89 +1,112 @@
-// ABOUTME: Human-readable durations, counts and language names for the dashboard.
-// ABOUTME: Pure — the same helpers run in the status bar and inside the webview.
-
-/** "1h 23m", "48m", "—" for nothing. Never "0h 0m". */
+/**
+ * A duration a person would say out loud. Under a minute stays in seconds so a
+ * fresh install does not sit at "0m" for its first minute and look broken.
+ */
 export function duration(seconds: number): string {
-  if (seconds <= 0) {
-    return "—";
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "0m";
   }
-  const total = Math.round(seconds / 60);
-  const hours = Math.floor(total / 60);
-  const minutes = total % 60;
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
   if (hours === 0) {
-    return `${Math.max(minutes, 1)}m`;
+    return `${minutes}m`;
   }
   return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }
 
-/** Compact form for the status bar, where space is tight. */
-export function shortDuration(seconds: number): string {
-  if (seconds <= 0) {
-    return "0m";
-  }
-  const total = Math.round(seconds / 60);
-  const hours = Math.floor(total / 60);
-  return hours === 0 ? `${Math.max(total, 1)}m` : `${hours}h ${total % 60}m`;
+/** A duration for a dense table cell, where `4h 05m` lines up and `4h 5m` does not. */
+export function durationPadded(seconds: number): string {
+  const totalMinutes = Math.max(0, Math.round(seconds / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${minutes < 10 ? "0" : ""}${minutes}m`;
 }
 
-export function plural(count: number, one: string, many = `${one}s`): string {
-  return `${count} ${count === 1 ? one : many}`;
+/** Decimal hours, the unit an invoice wants. */
+export function hoursDecimal(seconds: number): string {
+  return (Math.max(0, seconds) / 3600).toFixed(2);
+}
+
+export function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
 /**
- * VS Code language ids are lowercase identifiers; these are the ones whose
- * display name isn't just the id capitalised.
+ * Display names for the language ids VS Code reports. Only the ones whose id is
+ * not already presentable are listed; anything unknown is title-cased, which is
+ * right far more often than it is wrong.
  */
 const LANGUAGE_NAMES: Record<string, string> = {
-  typescript: "TypeScript",
-  typescriptreact: "TypeScript React",
+  javascriptreact: "JSX",
+  typescriptreact: "TSX",
   javascript: "JavaScript",
-  javascriptreact: "JavaScript React",
-  python: "Python",
+  typescript: "TypeScript",
   csharp: "C#",
   cpp: "C++",
-  c: "C",
   objectivec: "Objective-C",
   objectivecpp: "Objective-C++",
   fsharp: "F#",
+  php: "PHP",
   html: "HTML",
   css: "CSS",
   scss: "SCSS",
-  less: "Less",
   json: "JSON",
   jsonc: "JSON with comments",
   yaml: "YAML",
   toml: "TOML",
   xml: "XML",
-  markdown: "Markdown",
+  sql: "SQL",
   shellscript: "Shell",
   powershell: "PowerShell",
-  sql: "SQL",
-  php: "PHP",
+  dockerfile: "Dockerfile",
+  makefile: "Makefile",
+  markdown: "Markdown",
+  plaintext: "Plain text",
+  ini: "INI",
+  bat: "Batch",
+  vue: "Vue",
+  svelte: "Svelte",
+  graphql: "GraphQL",
+  restructuredtext: "reStructuredText",
+  latex: "LaTeX",
   ruby: "Ruby",
   rust: "Rust",
   go: "Go",
+  python: "Python",
   java: "Java",
   kotlin: "Kotlin",
   swift: "Swift",
   dart: "Dart",
   lua: "Lua",
-  r: "R",
   perl: "Perl",
+  r: "R",
+  scala: "Scala",
   haskell: "Haskell",
   elixir: "Elixir",
+  erlang: "Erlang",
   clojure: "Clojure",
-  scala: "Scala",
-  dockerfile: "Dockerfile",
-  makefile: "Makefile",
-  ignore: "Ignore file",
-  properties: "Properties",
-  plaintext: "Plain text",
-  vue: "Vue",
-  svelte: "Svelte",
-  graphql: "GraphQL",
-  terraform: "Terraform",
+  zig: "Zig",
 };
 
 export function languageName(id: string): string {
-  return LANGUAGE_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
+  const known = LANGUAGE_NAMES[id];
+  if (known) {
+    return known;
+  }
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+/** `3 days ago`, for a heatmap tooltip. */
+export function relativeDays(days: number): string {
+  if (days <= 0) {
+    return "today";
+  }
+  if (days === 1) {
+    return "yesterday";
+  }
+  return `${days} days ago`;
 }

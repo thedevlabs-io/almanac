@@ -1,8 +1,8 @@
 {
   "name": "almanac",
   "displayName": "Almanac",
-  "description": "Local-only heatmaps and streaks for how you actually work \u2014 days, languages, projects and hours, tracked honestly.",
-  "version": "0.3.0",
+  "description": "Local-only heatmaps and streaks for how you actually work: days, languages, repositories and hours, tracked honestly.",
+  "version": "1.0.0",
   "publisher": "thedevlabs-io",
   "author": {
     "name": "thedevlabs-io"
@@ -18,7 +18,7 @@
     "url": "https://github.com/thedevlabs-io/almanac/issues"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.94.0"
   },
   "categories": [
     "Other"
@@ -43,6 +43,19 @@
         "icon": "$(graph)"
       },
       {
+        "command": "almanac.report",
+        "title": "Almanac: Open report",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "almanac.tour",
+        "title": "Almanac: Show the introduction"
+      },
+      {
+        "command": "almanac.why",
+        "title": "Almanac: Why am I idle right now?"
+      },
+      {
         "command": "almanac.pause",
         "title": "Almanac: Pause tracking"
       },
@@ -51,79 +64,83 @@
         "title": "Almanac: Resume tracking"
       },
       {
+        "command": "almanac.setClient",
+        "title": "Almanac: Set the client for this repository"
+      },
+      {
         "command": "almanac.export",
         "title": "Almanac: Export my data to JSON"
       },
       {
-        "command": "almanac.reset",
-        "title": "Almanac: Delete all tracked data"
-      },
-      {
-        "command": "almanac.report",
-        "title": "Almanac: Open report",
-        "icon": "$(list-flat)"
-      },
-      {
-        "command": "almanac.setClient",
-        "title": "Almanac: Set the client for this project"
-      },
-      {
         "command": "almanac.exportCsv",
         "title": "Almanac: Export report as CSV"
+      },
+      {
+        "command": "almanac.reset",
+        "title": "Almanac: Delete all tracked data"
       }
     ],
     "configuration": {
       "title": "Almanac",
       "properties": {
-        "almanac.tracking.enabled": {
+        "almanac.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Track activity. Turn off to stop recording entirely; existing data is kept until you delete it."
+          "order": 1,
+          "description": "Track activity. Turn off to stop recording entirely; data already recorded is kept until you delete it."
         },
         "almanac.idleMinutes": {
           "type": "number",
-          "default": 5,
+          "default": 15,
           "minimum": 1,
-          "maximum": 30,
-          "markdownDescription": "How long a keystroke, scroll, save or terminal command keeps the clock running. Raise it if reading and thinking are being scored as idle; lower it for a stricter count. The window must still be **focused** — the clock stops the moment you switch away."
+          "maximum": 60,
+          "order": 2,
+          "markdownDescription": "How long the clock keeps running after the last sign of activity. Anything you do in VS Code counts as a sign: typing, scrolling, a terminal command, a debug step, switching tabs. The window must also be **focused**, so the clock stops when you switch to another app.\n\nThis also bounds machine evidence: output from a running command can carry the clock for twice this value past your last real interaction, and never starts one on its own."
         },
-        "almanac.trackTerminal": {
+        "almanac.countTerminal": {
           "type": "boolean",
           "default": true,
-          "description": "Count working in the integrated terminal as activity: switching to a terminal, and starting a command in the one you're in."
+          "order": 3,
+          "markdownDescription": "Count working in the integrated terminal. Includes output arriving from a running command, so a long test run or a coding-agent session reads as work rather than as idle time. Turn it off and terminal interaction stops counting entirely rather than being recorded under another name."
         },
-        "almanac.trackDebug": {
+        "almanac.countDebug": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Count stepping through a debug session as activity. Turn off if you debug something that stops on its own — a crash loop under `restart` lands on a new frame just as a step does, and nothing in the API can tell them apart."
+          "order": 4,
+          "description": "Count stepping through a debug session as activity."
         },
         "almanac.trackProjects": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Record which project you worked on, by **workspace folder name only** \u2014 never the path, never file names. Turn off if a folder name would say more than you want."
+          "order": 5,
+          "markdownDescription": "Record which repository you worked in. Almanac stores the **repository folder name** and the path of the folder you opened relative to the repository root, so a monorepo subfolder rolls up under its repository. Never the absolute path, never file names."
         },
         "almanac.trackGitCommits": {
           "type": "boolean",
           "default": true,
+          "order": 6,
           "description": "Count commits you authored in open repositories, read through VS Code's built-in Git extension."
+        },
+        "almanac.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "order": 7,
+          "description": "Show the current streak and today's active time in the status bar."
         },
         "almanac.streak.minMinutes": {
           "type": "number",
           "default": 5,
           "minimum": 1,
           "maximum": 240,
+          "order": 8,
           "description": "Minutes of active work a day needs before it counts towards a streak."
-        },
-        "almanac.statusBar.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show the current streak and today's active time in the status bar."
         },
         "almanac.retentionDays": {
           "type": "number",
           "default": 730,
           "minimum": 30,
           "maximum": 3650,
+          "order": 9,
           "description": "How many days of history to keep. Older days are deleted."
         },
         "almanac.clients": {
@@ -132,7 +149,8 @@
           "additionalProperties": {
             "type": "string"
           },
-          "markdownDescription": "Maps a project folder name to the client it belongs to, so several repos report as one client \u2014 e.g. `{ \"thedevlabs-api\": \"thedevlabs\" }`. Projects with no entry report under their own folder name. Set it from **Almanac: Set the client for this project**."
+          "order": 10,
+          "markdownDescription": "Maps a repository name to the client it belongs to, so several repositories report as one client, e.g. `{ \"thedevlabs-api\": \"thedevlabs\" }`. Repositories with no entry report under their own name. Set it from **Almanac: Set the client for this repository**."
         },
         "almanac.report.rounding": {
           "type": "string",
@@ -149,10 +167,65 @@
             "Round each day up to the hour"
           ],
           "default": "none",
+          "order": 11,
           "description": "Rounding applied per client per day in reports. Raw time is always shown alongside."
         }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "almanac.welcome",
+        "title": "Get started with Almanac",
+        "description": "How Almanac decides you are working, what it records, and the one setting worth knowing about.",
+        "steps": [
+          {
+            "id": "almanac.welcome.counts",
+            "title": "What counts as work",
+            "description": "Almanac runs a clock while your VS Code window is focused and something is happening in it.\n[Open the dashboard](command:almanac.open)",
+            "media": {
+              "markdown": "media/walkthrough/counts.md",
+              "altText": "What Almanac counts as active work"
+            }
+          },
+          {
+            "id": "almanac.welcome.terminal",
+            "title": "Terminal and browser work counts too",
+            "description": "A day spent in the terminal is a day of work. Almanac counts it.\n[Why am I idle right now?](command:almanac.why)",
+            "media": {
+              "markdown": "media/walkthrough/terminal.md",
+              "altText": "How terminal activity is counted"
+            }
+          },
+          {
+            "id": "almanac.welcome.projects",
+            "title": "Repositories, not folders",
+            "description": "Open a subfolder of a monorepo and the time rolls up under the repository, with the subfolder shown beneath it.",
+            "media": {
+              "markdown": "media/walkthrough/projects.md",
+              "altText": "How repositories and subfolders are attributed"
+            }
+          },
+          {
+            "id": "almanac.welcome.privacy",
+            "title": "Nothing leaves this machine",
+            "description": "Almanac has no network code. Everything lives in one local file you can read, export or delete.\n[Export my data](command:almanac.export)",
+            "media": {
+              "markdown": "media/walkthrough/privacy.md",
+              "altText": "Where Almanac stores data"
+            }
+          },
+          {
+            "id": "almanac.welcome.configure",
+            "title": "Configure it, or don't",
+            "description": "The defaults are meant to be right for everyone. If they are not, there are ten settings and this is the one that matters.\n[Open Almanac settings](command:workbench.action.openSettings?%22almanac%22)",
+            "media": {
+              "markdown": "media/walkthrough/configure.md",
+              "altText": "Almanac settings"
+            }
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run lint && npm test && npm run build",
@@ -161,12 +234,13 @@
     "compile": "tsc -p ./ --noEmit",
     "lint": "eslint .",
     "test": "npm run compile && esbuild test/*.test.ts --bundle --outdir=dist/test --out-extension:.js=.cjs --platform=node --format=cjs && node --test dist/test/*.test.cjs",
+    "smoke": "npm run build && node scripts/smoke.mjs",
     "package": "vsce package"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^20.11.0",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.94.0",
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.20.0",
     "eslint": "^9.39.5",

@@ -1,69 +1,61 @@
-// ABOUTME: Tests for streak arithmetic — the number users will care most about being right.
-// ABOUTME: Run with `npm test`.
-
+import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import assert from "node:assert/strict";
-import { qualifyingDays, streakOf } from "../src/core/streaks";
+import { atRisk, secondsToKeepStreak, streaks } from "../src/core/streaks";
+import { emptyDay, type DayRecord } from "../src/core/types";
 
-test("no days means no streak", () => {
-  assert.deepEqual(streakOf([], "2026-08-07"), { current: 0, longest: 0, todayCounts: false });
+function days(entries: Record<string, number>): Record<string, DayRecord> {
+  const result: Record<string, DayRecord> = {};
+  for (const [date, minutes] of Object.entries(entries)) {
+    result[date] = { ...emptyDay(date), activeSeconds: minutes * 60 };
+  }
+  return result;
+}
+
+test("no qualifying days means no streak", () => {
+  assert.deepEqual(streaks(days({ "2026-08-01": 1 }), "2026-08-01", 5), {
+    current: 0,
+    longest: 0,
+  });
 });
 
-test("consecutive days ending today count as the current streak", () => {
-  const days = ["2026-08-05", "2026-08-06", "2026-08-07"];
-  const streak = streakOf(days, "2026-08-07");
-  assert.equal(streak.current, 3);
-  assert.equal(streak.longest, 3);
-  assert.equal(streak.todayCounts, true);
+test("consecutive qualifying days build a streak", () => {
+  const result = streaks(
+    days({ "2026-08-01": 30, "2026-08-02": 30, "2026-08-03": 30 }),
+    "2026-08-03",
+    5
+  );
+  assert.equal(result.current, 3);
+  assert.equal(result.longest, 3);
 });
 
-test("today not qualifying yet does not break the streak", () => {
-  // At 9am you haven't worked yet; the run through yesterday still stands.
-  const streak = streakOf(["2026-08-05", "2026-08-06"], "2026-08-07");
-  assert.equal(streak.current, 2);
-  assert.equal(streak.todayCounts, false);
+test("yesterday still counts as current, so a streak does not break at breakfast", () => {
+  const result = streaks(days({ "2026-08-01": 30, "2026-08-02": 30 }), "2026-08-03", 5);
+  assert.equal(result.current, 2);
 });
 
-test("a missed day does break it", () => {
-  const streak = streakOf(["2026-08-01", "2026-08-02", "2026-08-05"], "2026-08-07");
-  assert.equal(streak.current, 0);
-  assert.equal(streak.longest, 2);
+test("a two day gap ends the current streak but not the longest", () => {
+  const result = streaks(
+    days({ "2026-08-01": 30, "2026-08-02": 30, "2026-08-03": 30, "2026-08-10": 30 }),
+    "2026-08-12",
+    5
+  );
+  assert.equal(result.current, 0);
+  assert.equal(result.longest, 3);
 });
 
-test("the longest run is found anywhere in history, with its dates", () => {
-  const days = [
-    "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04",
-    "2026-03-01",
-    "2026-08-06", "2026-08-07",
-  ];
-  const streak = streakOf(days, "2026-08-07");
-  assert.equal(streak.longest, 4);
-  assert.equal(streak.longestFrom, "2026-01-01");
-  assert.equal(streak.longestTo, "2026-01-04");
-  assert.equal(streak.current, 2);
+test("a day below the threshold does not qualify", () => {
+  const result = streaks(days({ "2026-08-01": 30, "2026-08-02": 2 }), "2026-08-02", 5);
+  assert.equal(result.current, 1);
+  assert.equal(result.lastQualifying, "2026-08-01");
 });
 
-test("a streak spanning a month boundary is unbroken", () => {
-  const streak = streakOf(["2026-01-30", "2026-01-31", "2026-02-01"], "2026-02-01");
-  assert.equal(streak.current, 3);
+test("time still needed today is reported, and clamped at zero", () => {
+  assert.equal(secondsToKeepStreak(days({ "2026-08-02": 2 }), "2026-08-02", 5), 180);
+  assert.equal(secondsToKeepStreak(days({ "2026-08-02": 30 }), "2026-08-02", 5), 0);
 });
 
-test("a streak spanning a leap day is unbroken", () => {
-  const streak = streakOf(["2028-02-28", "2028-02-29", "2028-03-01"], "2028-03-01");
-  assert.equal(streak.current, 3);
-});
-
-test("duplicate days do not inflate a streak", () => {
-  const streak = streakOf(["2026-08-06", "2026-08-06", "2026-08-07"], "2026-08-07");
-  assert.equal(streak.current, 2);
-});
-
-test("only days over the bar qualify", () => {
-  const records = [
-    { date: "2026-08-05", activeSeconds: 600 },
-    { date: "2026-08-06", activeSeconds: 30 },
-    { date: "2026-08-07", activeSeconds: 400 },
-  ];
-  assert.deepEqual(qualifyingDays(records, 300), ["2026-08-05", "2026-08-07"]);
-  assert.equal(streakOf(qualifyingDays(records, 300), "2026-08-07").current, 1);
+test("a streak is at risk only when yesterday qualified and today has not", () => {
+  assert.equal(atRisk(days({ "2026-08-01": 30 }), "2026-08-02", 5), true);
+  assert.equal(atRisk(days({ "2026-08-01": 30, "2026-08-02": 30 }), "2026-08-02", 5), false);
+  assert.equal(atRisk(days({}), "2026-08-02", 5), false);
 });

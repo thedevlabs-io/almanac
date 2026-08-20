@@ -1,58 +1,41 @@
-// ABOUTME: Tests for how a change is classified — typed at the keyboard, or arriving in a block.
-// ABOUTME: Run with `npm test`.
-
+import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import assert from "node:assert/strict";
-import {
-  classify,
-  emptyComposition,
-  foldChange,
-  insertedShare,
-} from "../src/core/composition";
+import { classify, emptyComposition, foldChange, mergeComposition, typedShare } from "../src/core/composition";
 
-const change = (inserted: number, removed = 0, multiline = false) => ({
-  inserted,
-  removed,
-  multiline,
+test("a keystroke sized single line change is typing", () => {
+  assert.equal(classify({ inserted: 1, removed: 0, multiline: false }), "typed");
+  assert.equal(classify({ inserted: 0, removed: 1, multiline: false }), "typed");
+  assert.equal(classify({ inserted: 4, removed: 0, multiline: false }), "typed");
 });
 
-test("a single character is typing", () => {
-  assert.equal(classify(change(1)), "typed");
+test("anything multiline or larger than a keystroke is a block", () => {
+  assert.equal(classify({ inserted: 1, removed: 0, multiline: true }), "block");
+  assert.equal(classify({ inserted: 5, removed: 0, multiline: false }), "block");
+  assert.equal(classify({ inserted: 0, removed: 500, multiline: false }), "block");
 });
 
-test("an auto-closed bracket pair still counts as typing", () => {
-  assert.equal(classify(change(2)), "typed");
-});
-
-test("a block of text is an insertion, whatever produced it", () => {
-  assert.equal(classify(change(80)), "inserted");
-});
-
-test("a short multi-line change is an insertion, not typing", () => {
-  // Pressing Enter inside a block inserts a newline plus indentation; that is
-  // still a block arriving, and we do not try to guess further.
-  assert.equal(classify(change(2, 0, true)), "inserted");
-});
-
-test("a deletion is neither typed nor inserted", () => {
-  assert.equal(classify(change(0, 40)), "removed");
-});
-
-test("changes fold into running totals", () => {
+test("folding accumulates typed characters and block counts separately", () => {
   let composition = emptyComposition();
-  composition = foldChange(composition, change(1));
-  composition = foldChange(composition, change(1));
-  composition = foldChange(composition, change(200, 0, true));
-  composition = foldChange(composition, change(0, 12));
-  assert.deepEqual(composition, { typedChars: 2, insertedChars: 200, removedChars: 12 });
+  composition = foldChange(composition, { inserted: 1, removed: 0, multiline: false });
+  composition = foldChange(composition, { inserted: 3, removed: 0, multiline: false });
+  composition = foldChange(composition, { inserted: 400, removed: 0, multiline: true });
+
+  assert.deepEqual(composition, { typedChars: 4, blockChars: 400, blockCount: 1 });
 });
 
-test("the inserted share is undefined until something is written", () => {
-  assert.equal(insertedShare(emptyComposition()), undefined);
-  assert.equal(insertedShare({ typedChars: 0, insertedChars: 0, removedChars: 500 }), undefined);
+test("a pure deletion changes nothing, since nothing was written", () => {
+  const composition = foldChange(emptyComposition(), { inserted: 0, removed: 80, multiline: true });
+  assert.deepEqual(composition, emptyComposition());
 });
 
-test("the share counts written characters only, ignoring deletions", () => {
-  const share = insertedShare({ typedChars: 25, insertedChars: 75, removedChars: 9999 });
-  assert.equal(share, 0.75);
+test("the typed share is zero when nothing was written at all", () => {
+  assert.equal(typedShare(emptyComposition()), 0);
+  assert.equal(typedShare({ typedChars: 1, blockChars: 3, blockCount: 1 }), 0.25);
+});
+
+test("merging adds every field", () => {
+  assert.deepEqual(
+    mergeComposition({ typedChars: 1, blockChars: 2, blockCount: 3 }, { typedChars: 10, blockChars: 20, blockCount: 30 }),
+    { typedChars: 11, blockChars: 22, blockCount: 33 }
+  );
 });
