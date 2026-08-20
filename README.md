@@ -84,6 +84,29 @@ or any record of when you pressed a key. A day is a total, not a timeline.
 - **Almanac: Export my data to JSON** gives you the whole file.
 - **Almanac: Delete all tracked data** destroys it.
 
+## Branding
+
+Almanac's panels use [The Dev Labs design system](https://github.com/thedevlabs-io/design-system),
+consumed as a git submodule exactly as the website, learning portal and
+community apps do. `npm run tokens` regenerates `src/ui/brand.ts` from
+`design-system/design-tokens.json` and copies the webfonts into `media/fonts/`,
+so bumping the submodule is all it takes to follow a brand change.
+
+The split is deliberate. Backgrounds, text and borders come from
+`var(--vscode-*)`, so a panel belongs inside whatever theme you run, high
+contrast included. The design system supplies what carries identity: flask
+orange for the heat ramp, bars and punchcard, Space Grotesk and IBM Plex Mono,
+and the token radius and spacing scale.
+
+Light and dark are decided by **VS Code's active colour theme**, never by the
+OS. A dark editor on a light machine gets a dark-appropriate accent, which is
+the opposite of what a `prefers-color-scheme` media query would do. The accent
+darkens to `#d9660c` as text on light themes to hold AA contrast.
+
+The fonts ship inside the extension and load through webview URIs. The CSP
+allows `font-src` from the extension's own resources and nothing else, so there
+is still no path by which a panel can reach the network.
+
 ## Commands
 
 | Command | What it does |

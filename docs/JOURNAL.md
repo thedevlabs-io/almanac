@@ -31,6 +31,47 @@
 
 ## Log
 
+### 2026-08-20 (design system)
+
+- `design-system/` - added as a git submodule, matching how the website,
+  learning portal and community apps consume it. Vendoring a copy would have
+  been simpler and would have guaranteed drift; the submodule means a brand
+  change is a bump plus `npm run tokens`, and any divergence shows as a diff in
+  the generated file. `#decision`
+
+- `scripts/build-brand.mjs`, `src/ui/brand.ts` - generate the brand primitives
+  Almanac uses from `design-system/design-tokens.json`, and copy the webfonts
+  out of the `@fontsource` dev dependencies into `media/fonts/`. `brand.ts` is
+  checked in so a clone without submodules still typechecks; `media/fonts/` is
+  gitignored because it is a binary copy that `npm run build` regenerates.
+
+- `src/ui/style.ts` - `SHARED_STYLES` became `sharedStyles(fonts, theme)`. The
+  hybrid it implements: surfaces from `var(--vscode-*)` so a panel belongs
+  inside any theme including high contrast, identity from the design system
+  (accent, Space Grotesk, IBM Plex Mono, radius and spacing scale). A panel that
+  ignores the editor's theme looks broken; one that ignores the brand looks like
+  nobody made it. `#decision`
+
+- `src/ui/panel.ts` - `brandTheme()` reads
+  `vscode.window.activeColorTheme.kind`, not `prefers-color-scheme`. The design
+  system's `tokens.css` falls back to the OS when no `data-theme` is set, which
+  is wrong inside an editor: a dark VS Code on a light machine would get the
+  light accent. Both high contrast kinds map to the side they belong to. Panels
+  re-render on `onDidChangeActiveColorTheme`, since the accent that holds AA
+  changes with it. `#decision`
+
+- `test/panelHtml.test.ts` - added. Renders both panels and asserts the things
+  that fail silently rather than loudly: no inline `style` attribute anywhere
+  (the CSP has no `unsafe-inline`, and a nonce cannot cover an attribute), every
+  generated class actually used, no `connect-src` in the policy, the fonts
+  declared and pointed at bundled files, a repository named like markup rendered
+  as text, and the accent flipping with the theme argument rather than a media
+  query. The CSP regression this guards against had no coverage at all when it
+  shipped.
+
+- `eslint.config.mjs` - ignores `design-system/**`, which is a separate repo
+  with its own conventions and lint setup.
+
 ### 2026-08-20 (review pass)
 
 - `src/ui/webview.ts`, `src/ui/dashboardHtml.ts`, `src/ui/style.ts` - the CSP

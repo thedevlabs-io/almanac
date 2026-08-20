@@ -2,7 +2,8 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "out/**", "node_modules/**", "media/**"] },
+  // design-system is a submodule with its own repo, conventions and lint setup.
+  { ignores: ["dist/**", "out/**", "node_modules/**", "media/**", "design-system/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

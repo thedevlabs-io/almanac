@@ -3,6 +3,7 @@ import { keyOf, shift, startOfMonth } from "../core/day";
 import { buildReport, reportToCsv } from "../core/report";
 import type { Store } from "../storage/store";
 import type { SettingsCache } from "../tracking/settings";
+import { brandFonts, brandTheme } from "./panel";
 import { reportHtml } from "./reportHtml";
 
 type RangeName = "month" | "lastMonth" | "quarter" | "year";
@@ -32,7 +33,8 @@ export class ReportPanel {
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     private readonly store: Store,
-    private readonly settings: SettingsCache
+    private readonly settings: SettingsCache,
+    private readonly extensionUri: vscode.Uri
   ) {
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
@@ -40,7 +42,10 @@ export class ReportPanel {
       null,
       this.disposables
     );
-    this.disposables.push(this.settings.onDidChange(() => this.render()));
+    this.disposables.push(
+      this.settings.onDidChange(() => this.render()),
+      vscode.window.onDidChangeActiveColorTheme(() => this.render())
+    );
     this.render();
   }
 
@@ -56,7 +61,7 @@ export class ReportPanel {
       vscode.ViewColumn.Active,
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [context.extensionUri] }
     );
-    ReportPanel.instance = new ReportPanel(panel, store, settings);
+    ReportPanel.instance = new ReportPanel(panel, store, settings, context.extensionUri);
   }
 
   private async handle(message: { type?: string; range?: string }): Promise<void> {
@@ -95,7 +100,13 @@ export class ReportPanel {
   }
 
   render(): void {
-    this.panel.webview.html = reportHtml(this.report(), this.range, this.panel.webview.cspSource);
+    this.panel.webview.html = reportHtml(
+      this.report(),
+      this.range,
+      this.panel.webview.cspSource,
+      brandFonts(this.panel.webview, this.extensionUri),
+      brandTheme()
+    );
   }
 
   dispose(): void {

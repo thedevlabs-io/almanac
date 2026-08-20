@@ -1,5 +1,5 @@
 import type { DashboardModel, FolderRow, LabelledSlice, RepoRow } from "../core/dashboardModel";
-import { SHARED_STYLES } from "./style";
+import { sharedStyles, type BrandFonts, type BrandTheme } from "./style";
 import { contentSecurityPolicy, DynamicStyles, escapeHtml, nonce } from "./webview";
 
 const WINDOWS: { id: string; label: string }[] = [
@@ -9,7 +9,12 @@ const WINDOWS: { id: string; label: string }[] = [
   { id: "year", label: "Year" },
 ];
 
-export function dashboardHtml(model: DashboardModel, cspSource: string): string {
+export function dashboardHtml(
+  model: DashboardModel,
+  cspSource: string,
+  fonts: BrandFonts,
+  theme: BrandTheme
+): string {
   const id = nonce();
   const styles = new DynamicStyles();
   // The body is rendered first so the generated classes exist by the time the
@@ -18,13 +23,13 @@ export function dashboardHtml(model: DashboardModel, cspSource: string): string 
   const content = model.empty ? emptyState() : body(model, styles);
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="${theme}">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="${contentSecurityPolicy(cspSource, id)}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Almanac</title>
-<style nonce="${id}">${SHARED_STYLES}${styles.css}</style>
+<style nonce="${id}">${sharedStyles(fonts, theme)}${styles.css}</style>
 </head>
 <body>
 ${header(model)}

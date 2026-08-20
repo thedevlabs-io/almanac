@@ -13,3 +13,6 @@ almanac-export.json
 *-export.json
 
 CLAUDE.local.md
+
+# Copied from @fontsource at build time by scripts/build-brand.mjs
+media/fonts/

@@ -1,6 +1,6 @@
 import { durationPadded, hoursDecimal } from "../core/format";
 import type { Report } from "../core/report";
-import { SHARED_STYLES } from "./style";
+import { sharedStyles, type BrandFonts, type BrandTheme } from "./style";
 import { contentSecurityPolicy, escapeHtml, nonce } from "./webview";
 
 const RANGES = [
@@ -10,7 +10,13 @@ const RANGES = [
   { id: "year", label: "Last 12 months" },
 ];
 
-export function reportHtml(report: Report, range: string, cspSource: string): string {
+export function reportHtml(
+  report: Report,
+  range: string,
+  cspSource: string,
+  fonts: BrandFonts,
+  theme: BrandTheme
+): string {
   const id = nonce();
   const tabs = RANGES.map(
     (entry) =>
@@ -18,13 +24,13 @@ export function reportHtml(report: Report, range: string, cspSource: string): st
   ).join("");
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="${theme}">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="${contentSecurityPolicy(cspSource, id)}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Almanac report</title>
-<style nonce="${id}">${SHARED_STYLES}</style>
+<style nonce="${id}">${sharedStyles(fonts, theme)}</style>
 </head>
 <body>
 <header>
