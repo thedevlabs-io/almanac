@@ -1,4 +1,10 @@
-import type { DashboardModel, FolderRow, LabelledSlice, RepoRow } from "../core/dashboardModel";
+import type {
+  DashboardModel,
+  DayRow,
+  FolderRow,
+  LabelledSlice,
+  RepoRow,
+} from "../core/dashboardModel";
 import { sharedStyles, type BrandFonts, type BrandTheme } from "./style";
 import { contentSecurityPolicy, DynamicStyles, escapeHtml, nonce } from "./webview";
 
@@ -76,7 +82,7 @@ function emptyState(): string {
 function body(model: DashboardModel, styles: DynamicStyles): string {
   return `
 ${stats(model)}
-${heatmapCard(model)}
+${heatmapCard(model, styles)}
 <div class="grid halves">
   ${card("Languages", barRows(model.languages, styles))}
   ${signalsCard(model, styles)}
@@ -115,35 +121,94 @@ function stats(model: DashboardModel): string {
 </div>`;
 }
 
-function heatmapCard(model: DashboardModel): string {
-  const months = model.weeks
-    .map((_, index) => {
-      const label = model.monthLabels.find((entry) => entry.index === index);
-      return `<span>${label ? escapeHtml(label.label) : ""}</span>`;
-    })
+function heatmapCard(model: DashboardModel, styles: DynamicStyles): string {
+  const inner = model.showsDayRows ? dayRowsGrid(model, styles) : calendarGrid(model, styles);
+  return `<div class="card">
+  <h2>Activity</h2>
+  ${inner}
+  ${legend(model)}
+</div>`;
+}
+
+/**
+ * The week window as named rows. Seven squares stacked in one column is a
+ * heatmap of nothing, so at this range the days get their names and their
+ * hours instead.
+ */
+function dayRowsGrid(model: DashboardModel, styles: DynamicStyles): string {
+  return `<div class="day-rows">${model.dayRows.map((row) => dayRowHtml(row, styles)).join("")}</div>`;
+}
+
+function dayRowHtml(row: DayRow, styles: DynamicStyles): string {
+  const hours = row.busiestHours.length > 0 ? row.busiestHours : "nothing tracked";
+  return `<div class="day-row${row.isToday ? " today" : ""}">
+  <span class="day-name mono">${escapeHtml(row.dayLabel)}</span>
+  ${bar(styles, row.share)}
+  <span class="mono small day-time">${escapeHtml(row.time)}</span>
+  <span class="muted small day-hours mono">${escapeHtml(hours)}</span>
+</div>`;
+}
+
+/** The calendar grid, with a weekday gutter and month labels that cannot collide. */
+function calendarGrid(model: DashboardModel, styles: DynamicStyles): string {
+  const columns = model.weeks.length;
+  if (columns === 0) {
+    return `<p class="muted small">Nothing tracked in this range yet.</p>`;
+  }
+  const track = styles.add(`grid-template-columns:repeat(${columns},var(--cell))`);
+
+  const months = model.monthLabels
+    .map(
+      (month) =>
+        `<span class="${styles.add(
+          `grid-column:${month.column} / span ${month.span}`
+        )}">${escapeHtml(month.label)}</span>`
+    )
     .join("");
+
+  const gutter = model.weekdayLabels
+    .map((label) => `<span>${escapeHtml(label)}</span>`)
+    .join("");
+
   const weeks = model.weeks
     .map(
       (week) =>
         `<div class="heat-week">${week.cells
-          .map(
-            (cell) =>
-              `<div class="heat-cell" data-level="${cell.level}" title="${escapeHtml(
-                cell.label
-              )}"></div>`
+          .map((cell) =>
+            cell.filler
+              ? `<div class="heat-cell filler"></div>`
+              : `<div class="heat-cell" data-level="${cell.level}" title="${escapeHtml(
+                  cell.label
+                )}"></div>`
           )
           .join("")}</div>`
     )
     .join("");
-  const legend = [0, 1, 2, 3, 4]
-    .map((level) => `<div class="heat-cell" data-level="${level}"></div>`)
-    .join("");
-  return `<div class="card">
-  <h2>Activity</h2>
-  <div class="heat-months">${months}</div>
-  <div class="heatmap">${weeks}</div>
-  <div class="legend">Less ${legend} More</div>
+
+  return `<div class="heat-layout">
+  <div class="heat-gutter">${gutter}</div>
+  <div class="heat-scroll">
+    <div class="heat-months ${track}">${months}</div>
+    <div class="heatmap">${weeks}</div>
+  </div>
 </div>`;
+}
+
+/**
+ * The scale, worded in hours. Levels are cut against the busiest day in the
+ * window, so the same shade means different things in different windows, and
+ * saying so is what makes the graph readable rather than decorative.
+ */
+function legend(model: DashboardModel): string {
+  const stops = model.legend
+    .map(
+      (stop) =>
+        `<span class="legend-stop"><span class="heat-cell" data-level="${
+          stop.level
+        }"></span>${escapeHtml(stop.text)}</span>`
+    )
+    .join("");
+  return `<div class="legend">${stops}</div>`;
 }
 
 function bar(styles: DynamicStyles, share: number, extraClass = ""): string {
@@ -224,20 +289,27 @@ function repositoriesCard(model: DashboardModel, styles: DynamicStyles): string 
 }
 
 function punchcardCard(model: DashboardModel, styles: DynamicStyles): string {
-  const { hours, busiest } = model.punchcard;
-  const bars = hours
-    .map((seconds, hour) => {
-      const share = busiest === 0 ? 0 : seconds / busiest;
-      return `<div class="${styles.percent("height", share)}" title="${hour}:00, ${seconds} seconds"></div>`;
-    })
+  const bars = model.punchBars
+    .map(
+      (column) =>
+        `<div class="${styles.percent("height", column.share)}" title="${escapeHtml(
+          column.label
+        )}"></div>`
+    )
     .join("");
-  const labels = hours.map((_, hour) => `<span>${hour % 6 === 0 ? hour : ""}</span>`).join("");
+  const labels = model.punchBars
+    .map((column) => `<span>${column.hour % 6 === 0 ? pad2(column.hour) : ""}</span>`)
+    .join("");
   return `<div class="card">
   <h2>When you work</h2>
   <div class="punchcard">${bars}</div>
   <div class="punch-labels">${labels}</div>
   <p class="muted small note">Busiest hour: ${escapeHtml(model.peakHourLabel)}</p>
 </div>`;
+}
+
+function pad2(hour: number): string {
+  return hour < 10 ? `0${hour}` : String(hour);
 }
 
 function compositionCard(model: DashboardModel, styles: DynamicStyles): string {

@@ -4,6 +4,41 @@ All notable changes to Almanac are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Almanac follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0]
+
+The heatmap was hard to read. Three bugs and a missing idea.
+
+### Fixed
+
+- **Days with no activity were invisible.** `--heat-0` was
+  `var(--vscode-editorWidget-background)`, the exact colour of the card painted
+  behind it, so an empty day rendered as nothing. A year of work read as a few
+  floating blobs with no grid to place them against. Empty cells are now a tint
+  of the foreground, visible in light, dark and high contrast alike.
+- **Month labels printed on top of each other.** Every week column got a fixed
+  12px span while a month name needs about 22px, so `Jul` and `Aug` ran together
+  and read as `JulAug`. The month row is now a grid sharing the calendar's
+  columns, each label given the columns up to the next month, and a month too
+  narrow to print is dropped rather than squeezed.
+- **The punchcard tooltip said `9:00, 1234 seconds`.** It now names the hour it
+  ends at and the time in hours and minutes.
+
+### Added
+
+- **Weekday labels.** Mon, Wed and Fri down the side of the grid, in a gutter
+  that stays put while a year of columns scrolls under it. Tooltips name the
+  weekday and a readable date rather than only `2026-08-20`.
+- **A legend in real hours.** It read `Less` to `More`, which says nothing.
+  Each step now names the duration it tops out at. Levels are cut against the
+  busiest day in the window, so the same shade means different things in
+  different windows, and the legend is the only thing that can say so.
+- **The week window shows named days instead of a single column.** Seven
+  squares stacked vertically is a heatmap of nothing: no shape to read, no way
+  to tell Tuesday from Thursday. At that range it is now a row per day with the
+  day's name, its duration, a bar, and the stretch of the day the work fell in,
+  read off the hour buckets. Days with nothing tracked are listed too, because a
+  week silently missing Wednesday looks like a week with six days.
+
 ## [1.1.0]
 
 ### Added
