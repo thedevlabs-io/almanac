@@ -37,7 +37,9 @@ src/
     tracker.ts          runs the clock, credits ticks to the day
     git.ts              commit counts via the built-in Git extension, guarded
   ui/
-    style.ts            shared tokens, all from VS Code theme variables
+    brand.ts            GENERATED from the design-system submodule; do not edit
+    panel.ts            webview font URIs, and the theme taken from VS Code
+    style.ts            shared stylesheet: editor surfaces, brand identity
     webview.ts          nonce, CSP, JSON embedding
     dashboard.ts        the dashboard panel
     dashboardHtml.ts    its markup
@@ -79,7 +81,23 @@ src/
    is a repository folder name plus a path relative to the repository root,
    gated behind `almanac.trackProjects`.
 
-3. **Explicability.** A tracker that miscounts silently is worse than one that
+3. **Branding without hijacking.** `design-system/` is a submodule, the same
+   one the website, learning portal and community apps use. `src/ui/brand.ts` is
+   generated from it by `npm run tokens` and must never be hand edited; a brand
+   change is a submodule bump plus a regenerate, so Almanac cannot drift from
+   the other three.
+
+   Surfaces stay on `var(--vscode-*)`. Backgrounds, foregrounds and borders
+   belong to the theme the user chose, high contrast included, and a panel that
+   overrides them looks broken inside the editor. The brand supplies accent,
+   type, radius and spacing.
+
+   Light and dark come from `vscode.window.activeColorTheme.kind`, never from
+   `prefers-color-scheme`. `tokens.css` falls back to the OS when nothing says
+   otherwise, and inside an editor that is wrong: a dark VS Code on a light
+   machine would get a light-theme accent.
+
+4. **Explicability.** A tracker that miscounts silently is worse than one that
    miscounts loudly. `presence.explain` and the `almanac.why` command exist so a
    user can always find out what the clock thinks, and the dashboard's signal
    breakdown exists so they can check it against a day they remember.

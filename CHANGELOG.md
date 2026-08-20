@@ -4,6 +4,38 @@ All notable changes to Almanac are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Almanac follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0]
+
+### Added
+
+- **The Dev Labs design system**, consumed as a git submodule the same way the
+  website, learning portal and community apps consume it. `npm run tokens`
+  regenerates `src/ui/brand.ts` from `design-system/design-tokens.json` and
+  copies the brand webfonts into `media/fonts/`, so a brand change is a
+  submodule bump rather than a hand edit.
+- Flask orange `#f47c20` now drives the heatmap ramp, every bar, the punchcard
+  and the selected tab. Space Grotesk sets headings and body, IBM Plex Mono sets
+  labels, numerals and durations. Radius and spacing come from the token scale.
+- Both fonts ship inside the extension and load through webview URIs, so the
+  panels look the same on a machine that has never seen them and still cannot
+  reach the network. Adds about 52 KB to the package.
+
+### Changed
+
+- Light and dark are selected from **VS Code's active colour theme** rather than
+  the OS `prefers-color-scheme` the design system defaults to. A dark editor on
+  a light machine would otherwise get a light-theme accent. Both high contrast
+  kinds map to the side they belong to, and the accent darkens to `#d9660c` as
+  text on light themes to hold AA.
+- Surfaces are unchanged and still come entirely from `var(--vscode-*)`. A panel
+  has to belong inside the theme someone chose, high contrast included, so the
+  brand supplies identity rather than a canvas.
+
+### Fixed
+
+- Panels re-render when the colour theme changes, instead of keeping an accent
+  that no longer holds contrast.
+
 ## [1.0.0]
 
 A rewrite. The tracking rule, the data model and the panels were all replaced.

@@ -2,7 +2,7 @@
   "name": "almanac",
   "displayName": "Almanac",
   "description": "Local-only heatmaps and streaks for how you actually work: days, languages, repositories and hours, tracked honestly.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "thedevlabs-io",
   "author": {
     "name": "thedevlabs-io"
@@ -228,17 +228,20 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run lint && npm test && npm run build",
-    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "vscode:prepublish": "npm run tokens && npm run lint && npm test && npm run build",
+    "build": "npm run tokens && esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
     "compile": "tsc -p ./ --noEmit",
     "lint": "eslint .",
     "test": "npm run compile && esbuild test/*.test.ts --bundle --outdir=dist/test --out-extension:.js=.cjs --platform=node --format=cjs && node --test dist/test/*.test.cjs",
     "smoke": "npm run build && node scripts/smoke.mjs",
-    "package": "vsce package"
+    "package": "npm run tokens && vsce package",
+    "tokens": "node scripts/build-brand.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@fontsource-variable/space-grotesk": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.94.0",
     "@vscode/vsce": "^3.9.2",

@@ -3,6 +3,7 @@ import { buildDashboard, type WindowName } from "../core/dashboardModel";
 import type { Store } from "../storage/store";
 import type { SettingsCache } from "../tracking/settings";
 import { dashboardHtml } from "./dashboardHtml";
+import { brandFonts, brandTheme } from "./panel";
 
 const REFRESH_MS = 30 * 1000;
 
@@ -16,7 +17,8 @@ export class Dashboard {
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     private readonly store: Store,
-    private readonly settings: SettingsCache
+    private readonly settings: SettingsCache,
+    private readonly extensionUri: vscode.Uri
   ) {
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
@@ -25,7 +27,12 @@ export class Dashboard {
       this.disposables
     );
     this.panel.onDidChangeViewState(() => this.scheduleRefresh(), null, this.disposables);
-    this.disposables.push(this.settings.onDidChange(() => this.render()));
+    this.disposables.push(
+      this.settings.onDidChange(() => this.render()),
+      // Switching between a light and a dark theme changes which accent holds
+      // contrast, so the panel is rebuilt rather than left mismatched.
+      vscode.window.onDidChangeActiveColorTheme(() => this.render())
+    );
     this.scheduleRefresh();
     this.render();
   }
@@ -47,7 +54,7 @@ export class Dashboard {
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [context.extensionUri] }
     );
     panel.iconPath = vscode.Uri.joinPath(context.extensionUri, "media", "icon.png");
-    Dashboard.instance = new Dashboard(panel, store, settings);
+    Dashboard.instance = new Dashboard(panel, store, settings, context.extensionUri);
     return Dashboard.instance;
   }
 
@@ -78,7 +85,12 @@ export class Dashboard {
       window: this.window,
       minStreakMinutes: this.settings.current.streakMinMinutes,
     });
-    this.panel.webview.html = dashboardHtml(model, this.panel.webview.cspSource);
+    this.panel.webview.html = dashboardHtml(
+      model,
+      this.panel.webview.cspSource,
+      brandFonts(this.panel.webview, this.extensionUri),
+      brandTheme()
+    );
   }
 
   dispose(): void {

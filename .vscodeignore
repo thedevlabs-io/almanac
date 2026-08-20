@@ -18,3 +18,7 @@ dist/test/**
 AGENTS.md
 CLAUDE.md
 PROMPT.md
+design-system/**
+.gitmodules
+.claude/**
+docs/**
