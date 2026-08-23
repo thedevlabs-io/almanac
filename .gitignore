@@ -19,3 +19,6 @@ media/fonts/
 
 # Rendered panel markup from `npm run preview`: build output, regenerate it
 docs/mockups/preview/
+
+# macOS
+.DS_Store
