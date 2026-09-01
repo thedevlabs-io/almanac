@@ -7,9 +7,28 @@
   equal on purpose; see the log entry below for why a hierarchy is a bug.
 - `vscode.window.state.active` is VS Code's own "has this window been interacted
   with recently" flag. It is the only way an extension can observe a keystroke
-  in the integrated terminal, the Simple Browser, a webview or the settings
-  editor. It is polled once per tick in `tracking/signals.ts:sample`, not
-  subscribed to, because between transitions no event fires.
+  in the integrated terminal or the settings editor. It is polled once per tick
+  in `tracking/signals.ts:sample`, not subscribed to, because between
+  transitions no event fires. Three facts about it, read from the VS Code
+  source (`domActivityTracker.ts`, `userActivityService.ts`,
+  `webviewElement.ts`): it counts only `keydown`, `mousedown` and `touchstart`
+  on the window's document; it starts true and drops 70 to 100 seconds after
+  the last of those; and a webview's input is re-dispatched on `window`, not
+  `document`, so the Simple Browser and the dashboard never reach it. The first
+  is why `signals.ts` arms the flag before trusting it. A long `withProgress`
+  task also extends it (`extendOnly`, so it cannot open a window), which is a
+  known way an agent's progress notification can hold the clock.
+- Several VS Code windows are several extension hosts writing one
+  `activity.json`. `storage/store.ts` holds only this window's unwritten delta
+  and merges it onto the file under `activity.json.lock` at write time; what it
+  shows is disk plus delta. `core/record.ts:mergeDay` is the merge rule, and it
+  works because every field is an additive counter. `commits` is read whole
+  from git by each window and merges by max.
+- A session is a credited tick more than `SESSION_GAP_MS` after the last one,
+  not every reopening of the clock. Sessions and distinct files are counted per
+  window and summed by the merge, so a file open in two windows counts twice
+  and a long stint in each window is a session in each. Seconds cannot be
+  double counted, because only the focused window credits them.
 - `TerminalShellExecution.read()` is subscribed to purely so that the arrival of
   output acts as a signal during a long command. The chunks are discarded
   unread. Do not start inspecting them; that would put shell output inside the
@@ -30,6 +49,54 @@
   overwritten, so a parse bug can never destroy history.
 
 ## Log
+
+### 2026-09-01 (multi-window data loss, phantom launch time, 1.4.0)
+
+- `src/storage/store.ts` - rewritten around a base plus delta. The old store
+  loaded once and wrote its whole memory back every two seconds, so with two
+  windows open each write erased the other window's day: the "multiple VS Code
+  windows make the time and streaks a mess" report. Now a write re-reads the
+  file, merges this window's delta under a lock and adopts the result. The lock
+  wait is bounded and a miss keeps the delta for the next write. A stamp of
+  inode, mtime and size skips the parse when nothing moved. `onDidChange` tells
+  the panels when another window wrote. #fix #storage
+- `src/core/record.ts` - `mergeDay` and `mergeDays`, the merge rule the store
+  needs. Pinned by tests that two stores on one directory keep each other's
+  seconds, languages, hours and sessions.
+- `src/tracking/signals.ts` - `state.active` is distrusted until armed. VS Code
+  starts the flag true and clears it only after 70 to 100 seconds of no input,
+  and `sample` stamped every one of those ticks as human, so a window restored
+  at login credited up to 100 seconds plus the whole idle window to an empty
+  chair. Armed by a false to true transition, a keyboard or mouse selection, or
+  `ACTIVE_SETTLE_MS` passing, after which the flag can only be true honestly. #fix
+- `src/tracking/tracker.ts` - sessions are now a credited tick more than
+  `SESSION_GAP_MS` after the previous one. Before, every reopening of the clock
+  counted, so an alt-tab to a browser was a session and a laptop that slept for
+  two minutes was another, while a real resume after sleep was missed because
+  `wasActive` was reset in the same tick. Languages are read only from `file`,
+  `untitled` and notebook-cell documents, so the output panel no longer files
+  time under `log`. #fix
+- `src/core/dashboardModel.ts` - the grid was aggregated from the Monday before
+  the window while every total used the window, so a busy day the page did not
+  count could set the legend and squash the year; the padding is blank now. The
+  window is 52 whole weeks, because 365 days holds today's weekday one extra
+  time and "busiest weekday" named it on that alone. Milestones use lifetime
+  figures like the card beside them, instead of two windowed rows and one
+  lifetime row in one table. `describeHours` no longer says `00:00 to 00:00`
+  for a night across midnight. #fix
+- `src/ui/report.ts` - the report panel never re-rendered on its own; open
+  across midnight or through an afternoon it kept the numbers from its last
+  click. It refreshes like the dashboard now, and both sync the store first so a
+  second window's minutes appear. `src/ui/dashboard.ts` also redraws on reveal,
+  since a retained panel showed an hour-old today. #fix
+- `src/ui/dashboardHtml.ts` - "In blocks" read 100% on a day with nothing
+  written, because it was `100 - typed` and `typed` was 0. #fix
+- `src/core/migrate.ts` - a project entry with a total but no folders lost all
+  of its time; the total goes to the root now. `src/core/report.ts` - CSV
+  fields starting with `=`, `+`, `-` or `@` are prefixed so a client name
+  cannot run as a formula. `src/core/format.ts` - `duration(59.7)` printed
+  `60s`. `src/extension.ts` - the tracker and store were disposed twice, and
+  `almanac.exportCsv` opened the report panel twice. #fix
 
 ### 2026-08-20 (filters, day drill-down, 1.3.0)
 

@@ -302,9 +302,16 @@ export function buildReport(
   };
 }
 
-/** RFC 4180 quoting: a field with a comma, quote or newline must be quoted. */
+/**
+ * RFC 4180 quoting: a field with a comma, quote or newline must be quoted.
+ *
+ * A leading `=`, `+`, `-` or `@` is prefixed with an apostrophe as well. A
+ * client name comes from settings and a repository name from disk, and a
+ * spreadsheet would otherwise run either as a formula on open.
+ */
 function csvField(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 export function reportToCsv(report: Report): string {

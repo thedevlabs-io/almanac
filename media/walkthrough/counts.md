@@ -8,7 +8,7 @@ the clock stops immediately. Focus is what keeps the count honest.
 - typing, scrolling or moving the cursor in a file
 - running a command in the terminal, and output arriving from one
 - stepping through a debugger, or a task running
-- switching tabs, opening a preview, using the Simple Browser
+- switching tabs or opening a preview
 
 "Recently" means the last 15 minutes by default, so reading a long file or
 thinking about a design is not scored as idle.

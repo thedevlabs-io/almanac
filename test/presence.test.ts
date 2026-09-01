@@ -6,6 +6,7 @@ import {
   idleWindowMs,
   isActive,
   MACHINE_GRACE_WINDOWS,
+  SESSION_GAP_MS,
   startsSession,
   SUSPEND_MS,
   TICK_MS,
@@ -115,10 +116,12 @@ test("a backwards clock credits nothing", () => {
   assert.equal(creditFor(state(), T + 100, T + 200, IDLE), 0);
 });
 
-test("a session starts on the transition into activity only", () => {
-  assert.equal(startsSession(false, true), true);
-  assert.equal(startsSession(true, true), false);
-  assert.equal(startsSession(true, false), false);
+test("a session starts after the clock has been closed for a while, not on every reopening", () => {
+  const now = 1_000_000_000;
+  assert.equal(startsSession(0, now), true, "the first credited tick opens a session");
+  assert.equal(startsSession(now - TICK_MS, now), false, "the next tick is the same session");
+  assert.equal(startsSession(now - SESSION_GAP_MS + 1, now), false, "a short closure is the same sitting");
+  assert.equal(startsSession(now - SESSION_GAP_MS - 1, now), true, "a longer one is a new session");
 });
 
 test("the idle window is clamped to an honest range", () => {

@@ -20,6 +20,7 @@ export class Dashboard {
   /** The day whose square was clicked, cleared by clicking Close. */
   private selectedDay: string | undefined;
   private timer: ReturnType<typeof setInterval> | undefined;
+  private renders = 0;
   private readonly disposables: vscode.Disposable[] = [];
 
   private constructor(
@@ -34,9 +35,21 @@ export class Dashboard {
       null,
       this.disposables
     );
-    this.panel.onDidChangeViewState(() => this.scheduleRefresh(), null, this.disposables);
+    this.panel.onDidChangeViewState(
+      () => {
+        this.scheduleRefresh();
+        // The panel keeps its context while hidden, so revealing it would
+        // otherwise show the numbers from whenever it was last looked at.
+        if (this.panel.visible) {
+          this.refresh();
+        }
+      },
+      null,
+      this.disposables
+    );
     this.disposables.push(
       this.settings.onDidChange(() => this.render()),
+      this.store.onDidChange(() => this.render()),
       // Switching between a light and a dark theme changes which accent holds
       // contrast, so the panel is rebuilt rather than left mismatched.
       vscode.window.onDidChangeActiveColorTheme(() => this.render())
@@ -93,11 +106,26 @@ export class Dashboard {
       this.timer = undefined;
     }
     if (this.panel.visible) {
-      this.timer = setInterval(() => this.render(), REFRESH_MS);
+      this.timer = setInterval(() => this.refresh(), REFRESH_MS);
     }
   }
 
+  /**
+   * Picks up what other windows have written, then redraws. Not if the sync
+   * already redrew through `onDidChange`, and not if the panel closed while
+   * the sync was pending: setting html on a disposed webview throws.
+   */
+  private refresh(): void {
+    const before = this.renders;
+    void this.store.sync().then(() => {
+      if (Dashboard.instance === this && this.renders === before) {
+        this.render();
+      }
+    });
+  }
+
   render(): void {
+    this.renders += 1;
     const model = buildDashboard(this.store.days, {
       minStreakMinutes: this.settings.current.streakMinMinutes,
       selected: this.selectedDay,

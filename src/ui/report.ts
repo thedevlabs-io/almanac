@@ -10,6 +10,7 @@ type RangeName = "month" | "lastMonth" | "quarter" | "year";
 
 /** Far above any real repository's folder count, far below a denial of service. */
 const MAX_FILTER_KEYS = 500;
+const REFRESH_MS = 30 * 1000;
 
 function rangeFor(name: RangeName, today = keyOf(new Date())): { from: string; to: string } {
   switch (name) {
@@ -35,6 +36,8 @@ export class ReportPanel {
   private tab: ReportTab = "clients";
   /** Repository and folder keys the report is narrowed to. Empty is everything. */
   private include: string[] = [];
+  private timer: ReturnType<typeof setInterval> | undefined;
+  private renders = 0;
   private readonly disposables: vscode.Disposable[] = [];
 
   private constructor(
@@ -50,11 +53,39 @@ export class ReportPanel {
       null,
       this.disposables
     );
+    this.panel.onDidChangeViewState(() => this.scheduleRefresh(), null, this.disposables);
     this.disposables.push(
       this.settings.onDidChange(() => this.render()),
+      this.store.onDidChange(() => this.render()),
       vscode.window.onDidChangeActiveColorTheme(() => this.render())
     );
+    this.scheduleRefresh();
     this.render();
+  }
+
+  /**
+   * Its range is read from the clock at render time, so a panel left open
+   * across midnight or through an afternoon of work has to redraw itself the
+   * same way the dashboard does. Only while visible.
+   */
+  private scheduleRefresh(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = undefined;
+    }
+    if (this.panel.visible) {
+      this.timer = setInterval(() => this.refresh(), REFRESH_MS);
+    }
+  }
+
+  /** As the dashboard's: no second redraw after `onDidChange`, none after close. */
+  private refresh(): void {
+    const before = this.renders;
+    void this.store.sync().then(() => {
+      if (ReportPanel.instance === this && this.renders === before) {
+        this.render();
+      }
+    });
   }
 
   static show(context: vscode.ExtensionContext, store: Store, settings: SettingsCache): void {
@@ -140,6 +171,7 @@ export class ReportPanel {
   }
 
   render(): void {
+    this.renders += 1;
     this.panel.webview.html = reportHtml(
       this.report(),
       this.range,
@@ -153,6 +185,9 @@ export class ReportPanel {
 
   dispose(): void {
     ReportPanel.instance = undefined;
+    if (this.timer) {
+      clearInterval(this.timer);
+    }
     for (const disposable of this.disposables) {
       disposable.dispose();
     }

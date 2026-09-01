@@ -22,18 +22,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   tracker = new Tracker(store, settings);
   const statusBar = new StatusBar(store, settings, () => tracker?.status() ?? { active: false, reason: "Starting up." });
 
+  // The tracker and the store are disposed in `deactivate`, where the final
+  // flush can be awaited. Registering them here as well would dispose them
+  // twice.
   context.subscriptions.push(
     statusBar,
-    { dispose: () => void tracker?.dispose() },
-    { dispose: () => store?.dispose() },
     tracker.onDidChange(() => statusBar.refresh()),
+    store.onDidChange(() => statusBar.refresh()),
     settings.onDidChange(() => statusBar.refresh())
   );
 
   await tracker.start();
   statusBar.refresh();
-  // The status bar shows a live clock, so it has to move without an event.
-  const statusTimer = setInterval(() => statusBar.refresh(), 30 * 1000);
+  // The status bar shows a live clock, so it has to move without an event, and
+  // it syncs first so a second window's minutes show up in this one's total.
+  const statusTimer = setInterval(() => {
+    void store?.sync().then(() => statusBar.refresh());
+  }, 30 * 1000);
   context.subscriptions.push({ dispose: () => clearInterval(statusTimer) });
 
   registerCommands(context, store, settings);
@@ -95,10 +100,7 @@ function registerCommands(
     void vscode.window.showInformationMessage(`Almanac data written to ${target.fsPath}`);
   });
 
-  register("almanac.exportCsv", () => {
-    ReportPanel.show(context, store, settings);
-    return vscode.commands.executeCommand("almanac.report");
-  });
+  register("almanac.exportCsv", () => ReportPanel.show(context, store, settings));
 
   register("almanac.reset", async () => {
     const confirm = "Delete everything";

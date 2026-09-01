@@ -9,6 +9,7 @@ import type {
   WeekHourRow,
 } from "../core/dashboardModel";
 import type { Composition } from "../core/composition";
+import { plural } from "../core/format";
 import { bar, card, legend, pane, statStrip, tabNav, tabScript, type TabDef } from "./shell";
 import { sharedStyles, type BrandFonts, type BrandTheme } from "./style";
 import { contentSecurityPolicy, DynamicStyles, escapeHtml, nonce } from "./webview";
@@ -235,7 +236,7 @@ function lifetimeTable(model: DashboardModel): string {
   <tr><td>Tracked since</td><td class="num mono">${escapeHtml(lifetime.sinceText)}</td></tr>
   <tr><td>Total time</td><td class="num mono">${escapeHtml(lifetime.total)}</td></tr>
   <tr><td>Active days</td><td class="num mono">${lifetime.activeDays.toLocaleString()}</td></tr>
-  <tr><td>Longest streak</td><td class="num mono">${lifetime.longestStreak} days</td></tr>
+  <tr><td>Longest streak</td><td class="num mono">${escapeHtml(plural(lifetime.longestStreak, "day"))}</td></tr>
 </tbody></table>
 <p class="muted small note">Everything Almanac still holds. Days past <span class="mono">almanac.retentionDays</span> are pruned from the store, so this grows with you and stops at that limit.</p>`;
 }
@@ -414,9 +415,11 @@ function signalsInner(model: DashboardModel, styles: DynamicStyles): string {
 function compositionInner(composition: Composition, typed: number): string {
   const { typedChars, blockChars, blockCount } = composition;
   const average = blockCount === 0 ? 0 : Math.round(blockChars / blockCount);
+  // Nothing written is 0% of each, not 0% typed and therefore 100% in blocks.
+  const blocks = typedChars + blockChars === 0 ? 0 : 100 - typed;
   return `<table class="tight"><tbody>
   <tr><td>Typed</td><td class="num mono">${typed}%</td><td class="num mono muted">${typedChars.toLocaleString()} chars</td></tr>
-  <tr><td>In blocks</td><td class="num mono">${100 - typed}%</td><td class="num mono muted">${blockChars.toLocaleString()} chars</td></tr>
+  <tr><td>In blocks</td><td class="num mono">${blocks}%</td><td class="num mono muted">${blockChars.toLocaleString()} chars</td></tr>
   <tr><td>Blocks</td><td class="num mono">${blockCount.toLocaleString()}</td><td class="num mono muted">avg ${average} chars</td></tr>
 </tbody></table>
 <p class="muted small note">A block is a paste, a formatter, a refactor or a coding agent. Almanac does not guess which.</p>`;

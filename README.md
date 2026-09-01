@@ -16,7 +16,7 @@ banking a meeting you were not in.
 - typing, scrolling or moving the cursor in a file
 - running a command in the terminal, and output arriving from one
 - stepping through a debugger, or a task running
-- switching tabs, opening a preview, using the Simple Browser
+- switching tabs or opening a preview
 
 "Recently" is 15 minutes by default (`almanac.idleMinutes`), so reading a long
 file or thinking is not scored as idle.
@@ -26,8 +26,9 @@ file or thinking is not scored as idle.
 Typing in the integrated terminal raises no event an extension can observe. VS
 Code, however, tracks whether its own window has been interacted with recently
 and exposes that as `window.state.active`. Almanac polls it. That single fact
-covers terminal keystrokes, the Simple Browser, webviews and the settings
-editor, none of which reach an extension any other way.
+covers terminal keystrokes and the settings editor, which reach an extension no
+other way. (Reading in the Simple Browser does not count: a webview is its own
+document, and its input never reaches the flag.)
 
 For the case that misses, watching a twenty minute test run without touching
 anything, Almanac follows the output stream of running shell commands. Only the
@@ -86,7 +87,7 @@ or any record of when you pressed a key. A day is a total, not a timeline.
 
 ## Reading the dashboard
 
-Six figures sit across the top and stay there: today, the last 365 days, your
+Six figures sit across the top and stay there: today, the last 52 weeks, your
 average active day, days active, the streak, and commits. Under them are three
 tabs, and whichever one is open those six do not move.
 

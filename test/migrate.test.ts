@@ -89,3 +89,13 @@ test("negative and non-numeric values are floored to zero, never carried", () =>
   assert.equal(day?.hours[1], 10);
   assert.equal(day?.hours.length, 24);
 });
+
+test("a project with a total and no folders keeps its time at the root", () => {
+  const database = migrate({
+    version: 2,
+    days: { "2026-08-20": { activeSeconds: 3600, projects: { acme: { seconds: 3600 } } } },
+  });
+  assert.deepEqual(database.days["2026-08-20"]?.projects, {
+    acme: { seconds: 3600, folders: { ".": 3600 } },
+  });
+});

@@ -1,14 +1,6 @@
 import * as vscode from "vscode";
 import { keyOf } from "../core/day";
-import {
-  creditFor,
-  explain,
-  isActive,
-  startsSession,
-  SUSPEND_MS,
-  TICK_MS,
-  type Explanation,
-} from "../core/presence";
+import { creditFor, explain, startsSession, TICK_MS, type Explanation } from "../core/presence";
 import type { Store } from "../storage/store";
 import { commitsByDay } from "./git";
 import { ProjectResolver } from "./projects";
@@ -18,11 +10,24 @@ import { InputSignals } from "./signals";
 /** How often commit counts are refreshed. Reading git logs is not free. */
 const COMMIT_POLL_MS = 5 * 60 * 1000;
 
+/**
+ * Schemes whose documents are yours. The output panel and a git diff are text
+ * editors too, and without this the language table fills with `log` for time
+ * spent reading build output.
+ */
+const OWN_SCHEMES = new Set(["file", "untitled", "vscode-notebook-cell"]);
+
+function currentLanguage(): string | undefined {
+  const document = vscode.window.activeTextEditor?.document;
+  return document && OWN_SCHEMES.has(document.uri.scheme) ? document.languageId : undefined;
+}
+
 export class Tracker {
   private readonly signals: InputSignals;
   private readonly projects = new ProjectResolver();
   private lastTick = Date.now();
-  private wasActive = false;
+  /** Epoch ms of the last tick that credited time. Zero until one has. */
+  private lastCredited = 0;
   private timer: ReturnType<typeof setInterval> | undefined;
   private commitTimer: ReturnType<typeof setInterval> | undefined;
   private readonly seenToday = new Set<string>();
@@ -99,51 +104,43 @@ export class Tracker {
   }
 
   private tick(): void {
-    const now = Date.now();
+    const moment = new Date();
+    const now = moment.getTime();
     const { enabled, idleMs, trackProjects } = this.settings.current;
 
     if (!enabled) {
-      this.wasActive = false;
       this.lastTick = now;
       return;
     }
 
     // Polled rather than purely event-driven, because this is what sees a
-    // keystroke in a terminal or the Simple Browser.
+    // keystroke in a terminal.
     this.signals.sample();
     const state = this.signals.presence;
-
-    const active = isActive(state, now, idleMs);
     const seconds = creditFor(state, now, this.lastTick, idleMs);
-
-    // A gap this long means the host stopped running: a closed lid, a sleeping
-    // machine. Coming back is a new session, and without this the pre-suspend
-    // signal is still inside the idle window so `wasActive` never drops.
-    if (now - this.lastTick > SUSPEND_MS) {
-      this.wasActive = false;
-    }
-
-    if (seconds > 0) {
-      const date = keyOf(new Date());
-      if (startsSession(this.wasActive, active)) {
-        this.store.count(date, "sessions");
-      }
-      const project = trackProjects ? this.projects.current() : undefined;
-      // The whole interval lands on the day and hour read at the end of the
-      // tick. Across midnight that misfiles at most one tick, fifteen seconds,
-      // which is not worth splitting an interval to avoid.
-      this.store.addTick(date, {
-        seconds,
-        hour: new Date().getHours(),
-        language: vscode.window.activeTextEditor?.document.languageId,
-        ...(project ? { project: { repo: project.repo, folder: project.folder } } : {}),
-        ...(state.lastKind ? { kind: state.lastKind } : {}),
-      });
-      this.changed.fire();
-    }
-
-    this.wasActive = active;
     this.lastTick = now;
+    if (seconds <= 0) {
+      return;
+    }
+
+    const date = keyOf(moment);
+    if (startsSession(this.lastCredited, now)) {
+      this.store.count(date, "sessions");
+    }
+    this.lastCredited = now;
+    const project = trackProjects ? this.projects.current() : undefined;
+    const language = currentLanguage();
+    // The whole interval lands on the day and hour read at the end of the
+    // tick. Across midnight that misfiles at most one tick, fifteen seconds,
+    // which is not worth splitting an interval to avoid.
+    this.store.addTick(date, {
+      seconds,
+      hour: moment.getHours(),
+      ...(language ? { language } : {}),
+      ...(project ? { project: { repo: project.repo, folder: project.folder } } : {}),
+      ...(state.lastKind ? { kind: state.lastKind } : {}),
+    });
+    this.changed.fire();
   }
 
   private async refreshCommits(): Promise<void> {

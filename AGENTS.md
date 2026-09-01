@@ -60,9 +60,16 @@ src/
    rewrite removed. The old design ranked signals by how much they resembled a
    keystroke in a text editor, so terminal work could never open the clock at
    all. The human tier is now `window.state.active`, VS Code's own
-   recent-interaction flag, which sees the terminal, the Simple Browser,
-   webviews and the settings editor alike, plus editor selections whose `kind`
-   is `Keyboard` or `Mouse`.
+   recent-interaction flag, which sees a keydown or mousedown anywhere in the
+   window, the terminal and the settings editor included, plus editor
+   selections whose `kind` is `Keyboard` or `Mouse`. A webview is a separate
+   document and its input does not reach the flag, so reading in the Simple
+   Browser is not counted; that is the honest side to err on.
+
+   The flag starts true when a window opens and drops only after 70 to 100
+   seconds without input, so `signals.ts` distrusts it until a person is
+   proven present another way or `ACTIVE_SETTLE_MS` has passed. Without that,
+   a window restored at login credits the whole idle window to nobody.
 
    Everything else is `machine`: command output, a watch task restarting, an
    agent editing an open file, a debugger landing on a frame. Machine evidence
@@ -72,6 +79,13 @@ src/
 
    `creditFor` caps a tick at `TICK_MS` and drops intervals longer than
    `SUSPEND_MS` entirely, so a sleeping laptop cannot bank hours on wake.
+
+   Several windows are several extension hosts sharing one `activity.json`.
+   `storage/store.ts` keeps only this window's unwritten delta and merges it
+   onto the file under a lock at write time, so a window can never overwrite
+   another's minutes. Do not reintroduce a load-once, write-whole store. Every
+   field of a `DayRecord` must stay an additive counter, or `mergeDay` needs a
+   rule for it; `commits` is the one exception and merges by max.
 
 2. **Privacy.** Almanac has no network code and must never gain any. Store
    aggregates, never events. Never record file names, paths or contents.
