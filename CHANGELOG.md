@@ -4,6 +4,59 @@ All notable changes to Almanac are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Almanac follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0]
+
+Two VS Code windows made the numbers a mess. This release is the reason why,
+and a pass over everything else the audit turned up.
+
+### Fixed
+
+- **Two windows no longer erase each other's day.** Every window runs its own
+  copy of Almanac, and each one used to load `activity.json` once and write its
+  whole memory back every two seconds, so whichever wrote last won and the
+  other window's minutes, sessions and streak days vanished. A window now keeps
+  only what it has not yet written and merges that onto the file under a lock,
+  so the total is the sum of every window. Nothing needs migrating; the file
+  format is unchanged. One consequence: commit counts merge by taking the
+  larger reading, so a rebase that squashes today's commits keeps the higher
+  figure.
+- **The status bar, dashboard and report show every window's time**, not only
+  the one you are looking at. They pick up what another window wrote within
+  thirty seconds.
+- **A window restored at login no longer banks time to an empty chair.** VS
+  Code marks a fresh window as recently interacted with for up to 100 seconds,
+  and Almanac believed it, which opened the clock for the whole idle window.
+  The flag is now trusted only once you have demonstrably done something.
+- **Sessions mean something.** A session is now a resumption after the clock
+  has been closed for at least five minutes. Before, switching to a browser and
+  back was a session, a laptop that slept for two minutes was another, and
+  coming back from a real sleep was missed.
+- **The heatmap's scale comes from the days it counts.** The grid was drawn
+  from the Monday before the window while every total used the window itself,
+  so a busy day outside the window could set the legend and squash the year.
+- **The dashboard covers 52 whole weeks** rather than 365 days. A 365 day
+  window holds today's weekday one more time than the other six, and "busiest
+  weekday" was naming it on the strength of that extra sample.
+- **Milestones use lifetime figures**, like the "All time on record" card next
+  to them. Two of three rows were windowed and nothing on screen said so.
+- **The report panel refreshes.** Left open across midnight or through an
+  afternoon of work, it kept whatever it showed when last clicked.
+- **"In blocks" no longer reads 100% on a day with nothing written.**
+- **A late night reads as one stretch.** A day worked from 23:00 to 02:00 was
+  described as `00:00 to 00:00`.
+- The language table no longer files time under `log` for reading the output
+  panel. A repository record with a total but no folders no longer loses its
+  time on load. A CSV field starting with `=`, `+`, `-` or `@` is prefixed so a
+  spreadsheet cannot run a client name as a formula. `59.7` seconds printed as
+  `60s`. The tracker was disposed twice on exit, and **Export report as CSV**
+  opened the report panel twice.
+
+### Changed
+
+- Almanac no longer claims to count reading in the Simple Browser or another
+  webview. It never could: a webview's keystrokes do not reach the flag VS Code
+  exposes. The walkthrough and README say so now.
+
 ## [1.3.0]
 
 The dashboard and the report were one long scroll of progress bars. Both are now

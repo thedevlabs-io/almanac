@@ -30,7 +30,13 @@ function migrateProjects(value: unknown): Record<string, ProjectRecord> {
         sum += value;
       }
       // The stored total is advisory. The folders are the truth, so a total
-      // that drifted from them is rebuilt rather than trusted.
+      // that drifted from them is rebuilt rather than trusted. A record with a
+      // total and no folders at all is the one exception: dropping it would
+      // silently zero a repository, so its time goes to the root.
+      if (sum === 0 && finite(entry.seconds) > 0) {
+        sum = finite(entry.seconds);
+        folders[REPO_ROOT] = sum;
+      }
       projects[name] = { seconds: sum, folders };
     }
   }

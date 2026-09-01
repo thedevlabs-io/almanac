@@ -5,7 +5,7 @@ handles that in two ways:
 
 **It asks VS Code directly.** VS Code tracks whether its window has been
 interacted with recently, whatever you were interacting with. That covers
-terminal keystrokes, the Simple Browser, webviews and the settings editor.
+terminal keystrokes and the settings editor.
 
 **It follows running commands.** When a command starts, Almanac notices output
 arriving from it. A twenty minute test run, a build, or a coding agent working

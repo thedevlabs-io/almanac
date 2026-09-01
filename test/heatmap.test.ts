@@ -114,11 +114,11 @@ test("an empty window says so rather than showing a broken scale", () => {
  * answers twice over, and "average day" silently meant something different in
  * each one.
  */
-test("the dashboard covers one rolling year, with no control to change it", () => {
+test("the dashboard covers 52 whole weeks, with no control to change it", () => {
   const model = buildDashboard(year(), { today: TODAY });
-  assert.equal(model.from, shift(TODAY, -364));
+  assert.equal(model.from, shift(TODAY, -363));
   assert.equal(model.to, TODAY);
-  assert.equal(model.rangeLabel, "last 365 days");
+  assert.equal(model.rangeLabel, "last 52 weeks");
 
   const html = dashboardHtml(model, "csp", FONTS, "dark");
   assert.equal(html.includes("data-window"), false, "the window tabs are still being rendered");
@@ -269,4 +269,53 @@ test("recent days are shaded on the same scale as the grid beside them", () => {
   assert.equal(row?.level, 1, "a 15 minute day is not the hottest shade of the year");
   const cell = model.weeks.flatMap((week) => week.cells).find((entry) => entry.date === quiet);
   assert.equal(row?.level, cell?.level, "the same day has two different shades on one screen");
+});
+
+test("the grid's scale is cut against the stated window, not the padding before it", () => {
+  // A huge day just before the window would otherwise set the scale for a
+  // year it is not part of, squashing every real day into the coldest band.
+  const days = week();
+  const before = shift(TODAY, -364);
+  days[before] = applyTick(emptyDay(before), { seconds: 12 * 3600, hour: 10 });
+
+  const model = buildDashboard(days, { today: TODAY });
+  const cells = model.weeks.flatMap((w) => w.cells);
+  assert.equal(cells.find((cell) => cell.date === before)?.filler ?? true, true, "the day before the window is blank");
+  assert.equal(cells.find((cell) => cell.date === TODAY)?.level, 4, "today is the busiest day shown");
+  assert.equal(model.legend[4]?.text, "to 2h");
+  assert.equal(model.weeks[0]?.cells[0]?.weekday, 0, "the first column still starts on a Monday");
+});
+
+test("milestones use lifetime figures, like the card they sit beside", () => {
+  const days = week();
+  const old = shift(TODAY, -500);
+  days[old] = applyTick(emptyDay(old), { seconds: 100 * 3600, hour: 10 });
+  const model = buildDashboard(days, { today: TODAY });
+  const hours = model.milestones.find((milestone) => milestone.id === "hours");
+  assert.equal(hours?.value, 100 + 3, "hours tracked counts every day on record");
+  assert.equal(model.lifetime.activeDays, 4);
+});
+
+test("a night across midnight is described as one stretch", () => {
+  const days: Record<string, DayRecord> = {};
+  let day = applyTick(emptyDay(TODAY), { seconds: 600, hour: 23 });
+  day = applyTick(day, { seconds: 600, hour: 0 });
+  day = applyTick(day, { seconds: 600, hour: 1 });
+  days[TODAY] = day;
+  const model = buildDashboard(days, { today: TODAY });
+  assert.equal(model.recentDays.find((row) => row.isToday)?.busiestHours, "23:00 to 02:00");
+});
+
+test("a day with nothing written is not 100% in blocks", () => {
+  const html = dashboardHtml(buildDashboard(week(), { today: TODAY }), "csp", FONTS, "dark");
+  assert.equal(html.includes(">100%<"), false, "an empty composition claims a full share");
+});
+
+test("a day with every hour worked says so instead of 00:00 to 00:00", () => {
+  let day = emptyDay(TODAY);
+  for (let hour = 0; hour < 24; hour += 1) {
+    day = applyTick(day, { seconds: 60, hour });
+  }
+  const model = buildDashboard({ [TODAY]: day }, { today: TODAY });
+  assert.equal(model.recentDays.find((row) => row.isToday)?.busiestHours, "All 24 hours");
 });

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import {
+  ACTIVE_SETTLE_MS,
   initialState,
   isHumanScroll,
   type PresenceState,
@@ -14,9 +15,12 @@ import type { SettingsCache } from "./settings";
  * The human tier is `vscode.window.state.active`, VS Code's own answer to "has
  * this window been interacted with recently", plus editor selections whose
  * `kind` is specifically `Keyboard` or `Mouse`. That is deliberately narrow:
- * `state.active` already sees keystrokes in the terminal, the Simple Browser,
- * webviews and the settings editor, none of which reach an extension any other
- * way, so nothing else needs to be trusted to prove a person is here.
+ * `state.active` already sees a keydown or mousedown anywhere in the window,
+ * the terminal and the settings editor included, which reach an extension no
+ * other way, so nothing else needs to be trusted to prove a person is here.
+ * (A webview's input does not reach it: the Simple Browser and the dashboard
+ * are separate documents. Reading in one is not counted, and that is the
+ * honest side to err on.)
  *
  * Everything else is machine evidence. An agent writing to the file you have
  * open, a watch task restarting, a debugger landing on a frame in a crash loop,
@@ -27,6 +31,14 @@ import type { SettingsCache } from "./settings";
  */
 export class InputSignals {
   private state: PresenceState = initialState(vscode.window.state.focused);
+  /**
+   * Whether `state.active` can be believed yet. VS Code starts the flag as
+   * true, so until a person is proven present some other way, or enough time
+   * has passed for an untouched window's flag to have dropped, it says nothing.
+   */
+  private armed = false;
+  private readonly startedAt = Date.now();
+  private wasWindowActive = vscode.window.state.active;
   private lastEdit = 0;
   private viewport: { uri: string; top: number } | undefined;
   private disposed = false;
@@ -59,8 +71,10 @@ export class InputSignals {
    * see is someone typing steadily in a terminal.
    */
   sample(): void {
-    this.state = { ...this.state, focused: vscode.window.state.focused };
-    if (!vscode.window.state.active || !this.state.focused) {
+    const { focused, active } = vscode.window.state;
+    this.state = { ...this.state, focused };
+    this.noteWindowActive(active);
+    if (!active || !focused || !this.trustsActive()) {
       return;
     }
     const surface = this.activeSurface();
@@ -68,6 +82,22 @@ export class InputSignals {
       return;
     }
     this.signal(surface, "human");
+  }
+
+  /**
+   * The flag going from false to true is an input that just happened, which
+   * is proof enough. Its initial true is not, and is outlived by the settle
+   * time.
+   */
+  private noteWindowActive(active: boolean): void {
+    if (active && !this.wasWindowActive) {
+      this.armed = true;
+    }
+    this.wasWindowActive = active;
+  }
+
+  private trustsActive(): boolean {
+    return this.armed || Date.now() - this.startedAt > ACTIVE_SETTLE_MS;
   }
 
   /**
@@ -97,7 +127,8 @@ export class InputSignals {
     this.subscriptions.push(
       vscode.window.onDidChangeWindowState((state) => {
         this.state = { ...this.state, focused: state.focused };
-        if (state.focused && state.active) {
+        this.noteWindowActive(state.active);
+        if (state.focused && state.active && this.trustsActive()) {
           this.signal("window", "human");
         }
       }),
@@ -110,6 +141,7 @@ export class InputSignals {
           event.kind === vscode.TextEditorSelectionChangeKind.Keyboard ||
           event.kind === vscode.TextEditorSelectionChangeKind.Mouse
         ) {
+          this.armed = true;
           this.signal("editor", "human");
         }
       }),

@@ -6,8 +6,9 @@ export function duration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) {
     return "0m";
   }
-  if (seconds < 60) {
-    return `${Math.round(seconds)}s`;
+  const whole = Math.round(seconds);
+  if (whole < 60) {
+    return `${whole}s`;
   }
   const totalMinutes = Math.round(seconds / 60);
   const hours = Math.floor(totalMinutes / 60);

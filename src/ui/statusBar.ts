@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { keyOf } from "../core/day";
-import { duration } from "../core/format";
+import { duration, plural } from "../core/format";
 import { streaks } from "../core/streaks";
 import type { Store } from "../storage/store";
 import type { SettingsCache } from "../tracking/settings";
@@ -35,7 +35,7 @@ export class StatusBar {
         `**Almanac**`,
         ``,
         `Today: ${duration(seconds)}`,
-        current > 0 ? `Streak: ${current} days` : `No streak yet`,
+        current > 0 ? `Streak: ${plural(current, "day")}` : `No streak yet`,
         ``,
         explanation.active ? `$(check) ${explanation.reason}` : `$(circle-slash) ${explanation.reason}`,
         ``,

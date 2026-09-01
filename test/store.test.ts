@@ -142,3 +142,148 @@ test("clearing writes an empty database rather than leaving the old file", async
   const database = (await read(directory)) as { days: Record<string, unknown> };
   assert.deepEqual(database.days, {});
 });
+
+/**
+ * Two VS Code windows are two extension hosts with one file between them.
+ * The first version of the store loaded once and wrote its whole memory back,
+ * so whichever window wrote last erased the other's day.
+ */
+test("two windows writing the same file keep each other's minutes", async () => {
+  const directory = await tempDir();
+  const a = new Store(directory, () => 730);
+  const b = new Store(directory, () => 730);
+  await a.load();
+  await b.load();
+
+  a.addTick("2026-08-20", { seconds: 60, hour: 9, language: "typescript", kind: "editor" });
+  a.count("2026-08-20", "sessions");
+  await a.flush();
+  b.addTick("2026-08-20", { seconds: 30, hour: 9, language: "go", kind: "terminal" });
+  b.addTick("2026-08-21", { seconds: 15, hour: 10 });
+  await b.flush();
+  a.addTick("2026-08-20", { seconds: 15, hour: 10 });
+  await a.flush();
+
+  const database = (await read(directory)) as { days: Record<string, { activeSeconds: number; languages: Record<string, number>; sessions: number; hours: number[] }> };
+  const day = database.days["2026-08-20"];
+  assert.equal(day?.activeSeconds, 105, "every window's seconds survive");
+  assert.deepEqual(day?.languages, { typescript: 60, go: 30 });
+  assert.equal(day?.sessions, 1);
+  assert.equal(day?.hours[9], 90);
+  assert.equal(day?.hours[10], 15);
+  assert.equal(database.days["2026-08-21"]?.activeSeconds, 15);
+
+  // Each window sees the merged picture after its own write, not just its own.
+  assert.equal(a.day("2026-08-20").activeSeconds, 105);
+  assert.equal(b.day("2026-08-20").activeSeconds, 90, "b has not synced since a's last write");
+  await b.sync();
+  assert.equal(b.day("2026-08-20").activeSeconds, 105);
+});
+
+test("a window that only reads is told when another wrote", async () => {
+  const directory = await tempDir();
+  const writer = new Store(directory, () => 730);
+  const reader = new Store(directory, () => 730);
+  await writer.load();
+  await reader.load();
+  let changes = 0;
+  reader.onDidChange(() => (changes += 1));
+
+  await reader.sync();
+  assert.equal(changes, 0, "nothing on disk moved");
+  writer.addTick("2026-08-20", { seconds: 60, hour: 9 });
+  await writer.flush();
+  await reader.sync();
+  assert.equal(changes, 1);
+  assert.equal(reader.day("2026-08-20").activeSeconds, 60);
+});
+
+test("commits are read whole by each window, so the larger reading wins", async () => {
+  const directory = await tempDir();
+  const a = new Store(directory, () => 730);
+  const b = new Store(directory, () => 730);
+  await a.load();
+  await b.load();
+  a.setCommits("2026-08-20", 3);
+  await a.flush();
+  b.setCommits("2026-08-20", 5);
+  await b.flush();
+  a.setCommits("2026-08-20", 2);
+  await a.flush();
+  const database = (await read(directory)) as { days: Record<string, { commits: number }> };
+  assert.equal(database.days["2026-08-20"]?.commits, 5);
+});
+
+test("a lock left by a dead window is cleared rather than blocking forever", async () => {
+  const directory = await tempDir();
+  const lock = path.join(directory, "activity.json.lock");
+  await fs.writeFile(lock, "", "utf8");
+  const old = new Date(Date.now() - 60 * 1000);
+  await fs.utimes(lock, old, old);
+
+  const store = new Store(directory, () => 730);
+  await store.load();
+  store.addTick("2026-08-20", { seconds: 60, hour: 9 });
+  await store.flush();
+  const database = (await read(directory)) as { days: Record<string, { activeSeconds: number }> };
+  assert.equal(database.days["2026-08-20"]?.activeSeconds, 60);
+  await assert.rejects(fs.stat(lock), "the lock is released afterwards");
+});
+
+test("a lock another window holds defers the write without losing it", async () => {
+  const directory = await tempDir();
+  const lock = path.join(directory, "activity.json.lock");
+  const store = new Store(directory, () => 730);
+  await store.load();
+  await fs.writeFile(lock, "", "utf8");
+
+  store.addTick("2026-08-20", { seconds: 60, hour: 9 });
+  await store.flush();
+  await assert.rejects(fs.stat(path.join(directory, "activity.json")), "nothing was written past the lock");
+  assert.equal(store.day("2026-08-20").activeSeconds, 60, "the delta is still shown");
+
+  await fs.rm(lock);
+  store.addTick("2026-08-20", { seconds: 15, hour: 9 });
+  await store.flush();
+  const database = (await read(directory)) as { days: Record<string, { activeSeconds: number }> };
+  assert.equal(database.days["2026-08-20"]?.activeSeconds, 75);
+});
+
+test("a listener reading the store mid-write sees each second once", async () => {
+  const directory = await tempDir();
+  const store = new Store(directory, () => 730);
+  await store.load();
+  const seen: number[] = [];
+  store.onDidChange(() => seen.push(store.day("2026-08-20").activeSeconds));
+  store.addTick("2026-08-20", { seconds: 60, hour: 9 });
+  await store.flush();
+  assert.deepEqual(seen, [60], "the delta was counted in both base and in flight");
+});
+
+test("a commit reading no larger than what is shown is not written again", async () => {
+  // Merging by max means a lower reading changes nothing, and writing it
+  // every poll would keep the file churning after a rebase.
+  const directory = await tempDir();
+  const store = new Store(directory, () => 730);
+  await store.load();
+  store.setCommits("2026-08-20", 5);
+  await store.flush();
+  const first = await fs.stat(path.join(directory, "activity.json"));
+  store.setCommits("2026-08-20", 3);
+  await store.flush();
+  const second = await fs.stat(path.join(directory, "activity.json"));
+  assert.equal(second.mtimeMs, first.mtimeMs, "the file was rewritten for a no-op");
+  assert.equal(store.day("2026-08-20").commits, 5);
+});
+
+test("clearing while another window holds the lock fails loudly", async () => {
+  const directory = await tempDir();
+  const store = new Store(directory, () => 730);
+  await store.load();
+  store.addTick("2026-08-20", { seconds: 60, hour: 9 });
+  await store.flush();
+  await fs.writeFile(path.join(directory, "activity.json.lock"), "", "utf8");
+  await assert.rejects(store.clear(), /another window/);
+  const database = (await read(directory)) as { days: Record<string, unknown> };
+  assert.equal(Object.keys(database.days).length, 1, "the data is still there, and the user was told");
+});

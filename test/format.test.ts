@@ -40,3 +40,8 @@ test("plurals and relative days", () => {
   assert.equal(relativeDays(1), "yesterday");
   assert.equal(relativeDays(5), "5 days ago");
 });
+
+test("a duration just under a minute does not print as 60s", () => {
+  assert.equal(duration(59.7), "1m");
+  assert.equal(duration(59.4), "59s");
+});

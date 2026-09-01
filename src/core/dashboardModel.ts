@@ -28,8 +28,13 @@ import type { DayRecord } from "./types";
  * of the year at once, and the recent-days table shows the last seven. What the
  * tabs added was ambiguity, because "average day" meant something different in
  * each one and nothing on screen said which.
+ *
+ * Fifty-two whole weeks, not 365 days. A 365 day window holds today's weekday
+ * one more time than the other six, and "busiest weekday" then names it on
+ * the strength of that extra sample alone.
  */
-const WINDOW_DAYS = 364;
+const WINDOW_WEEKS = 52;
+const WINDOW_DAYS = WINDOW_WEEKS * 7 - 1;
 
 export function windowRange(today: DayKey): { from: DayKey; to: DayKey } {
   return { from: shift(today, -WINDOW_DAYS), to: today };
@@ -153,6 +158,7 @@ export interface Lifetime {
   total: string;
   activeDays: number;
   longestStreak: number;
+  seconds: number;
 }
 
 /**
@@ -185,7 +191,7 @@ export interface DashboardModel {
   today: DayKey;
   from: DayKey;
   to: DayKey;
-  /** `last 365 days`, for the header. */
+  /** `last 52 weeks`, for the header. */
   rangeLabel: string;
   todayTime: string;
   windowTime: string;
@@ -255,16 +261,19 @@ export function buildDashboard(
   const { from, to } = windowRange(today);
 
   const totals = totalsFor(days, from, to);
-  const grid = heatmap(days, alignToWeek(from), to);
+  // Cut against the stated window only. The grid's first column is padded
+  // back to a Monday with blanks, not with days the totals do not include.
+  const grid = heatmap(days, from, to);
   const streakInfo = streaks(days, today, minMinutes);
   const week = weekHours(days, from, to);
   const hours = punchcard(totals);
+  const lifetime = lifetimeOf(days, streakInfo);
 
   return {
     today,
     from,
     to,
-    rangeLabel: `last ${range(from, to).length} days`,
+    rangeLabel: `last ${WINDOW_WEEKS} weeks`,
     todayTime: duration(days[today]?.activeSeconds ?? 0),
     windowTime: duration(totals.seconds),
     averageDay: duration(averageActiveDay(totals)),
@@ -273,7 +282,7 @@ export function buildDashboard(
     streakAtRisk: atRisk(days, today, minMinutes),
     streakNeeds: duration(secondsToKeepStreak(days, today, minMinutes)),
     weeks: intoWeeks(grid.cells, today, days),
-    monthLabels: monthLabels(grid.cells),
+    monthLabels: monthLabels(padToWeek(grid.cells)),
     weekdayLabels: WEEKDAYS.map((name, row) => (SHOWN_WEEKDAY_ROWS.has(row) ? name : "")),
     legend: legendFor(grid),
     languages: topLanguages(totals).map((slice) => ({
@@ -298,11 +307,14 @@ export function buildDashboard(
     busiestWeekdayLabel: busiestWeekdayLabel(week),
     recentDays: dayRows(days, shift(today, -6), today, today, grid.busiest),
     selected: options.selected === undefined ? undefined : dayDetail(days, options.selected, today),
-    lifetime: lifetimeOf(days, streakInfo),
+    lifetime,
+    // Lifetime figures throughout, because the longest streak can only be a
+    // lifetime figure and the card sits beside "All time on record". Mixing
+    // in windowed hours would put two denominators in one table.
     milestones: milestones({
-      totalSeconds: totals.seconds,
+      totalSeconds: lifetime.seconds,
       longestStreak: streakInfo.longest,
-      activeDays: totals.activeDays,
+      activeDays: lifetime.activeDays,
     }).map((milestone) => ({
       ...milestone,
       valueText: milestone.describe(milestone.value),
@@ -352,9 +364,22 @@ function legendFor(grid: { busiest: number; thresholds: [number, number, number]
   ];
 }
 
-/** Heatmap columns are weeks, so the window has to start on a Monday. */
-function alignToWeek(from: DayKey): DayKey {
-  return shift(from, -weekdayOf(from));
+/**
+ * The cells with blanks in front, back to the Monday of the first week, so the
+ * grid's columns are whole weeks. Blank rather than real: the days before the
+ * window are not in any total on the page, so they must not be in the grid.
+ */
+function padToWeek(cells: HeatCell[]): HeatCell[] {
+  const first = cells[0];
+  if (!first) {
+    return cells;
+  }
+  const lead = weekdayOf(first.date);
+  const blanks: HeatCell[] = [];
+  for (let i = lead; i > 0; i -= 1) {
+    blanks.push({ date: shift(first.date, -i), seconds: 0, level: 0 });
+  }
+  return [...blanks, ...cells];
 }
 
 function intoWeeks(
@@ -362,28 +387,31 @@ function intoWeeks(
   today: DayKey,
   days: Record<DayKey, DayRecord>
 ): HeatWeek[] {
+  const first = cells[0];
+  if (!first) {
+    return [];
+  }
+  const filler = (date: DayKey): HeatCellView => ({
+    date,
+    seconds: 0,
+    level: 0,
+    weekday: weekdayOf(date),
+    filler: true,
+    label: "",
+  });
+  const views: HeatCellView[] = padToWeek(cells).map((cell) =>
+    cell.date < first.date
+      ? filler(cell.date)
+      : { ...cell, weekday: weekdayOf(cell.date), filler: false, label: cellLabel(cell, today, days[cell.date]) }
+  );
+  // The final week runs out mid-column. Padding it keeps every column seven
+  // rows tall so the weekday gutter still lines up with the right rows.
+  while (views.length % 7 !== 0) {
+    views.push(filler(shift(views[views.length - 1]?.date ?? today, 1)));
+  }
   const weeks: HeatWeek[] = [];
-  for (let i = 0; i < cells.length; i += 7) {
-    const week = cells.slice(i, i + 7).map((cell) => ({
-      ...cell,
-      weekday: weekdayOf(cell.date),
-      filler: false,
-      label: cellLabel(cell, today, days[cell.date]),
-    }));
-    // The final week runs out mid-column. Padding it keeps every column seven
-    // rows tall so the weekday gutter still lines up with the right rows.
-    while (week.length < 7) {
-      const date = shift(week[week.length - 1]?.date ?? today, 1);
-      week.push({
-        date,
-        seconds: 0,
-        level: 0,
-        weekday: week.length,
-        filler: true,
-        label: "",
-      });
-    }
-    weeks.push({ cells: week });
+  for (let i = 0; i < views.length; i += 7) {
+    weeks.push({ cells: views.slice(i, i + 7) });
   }
   return weeks;
 }
@@ -528,12 +556,35 @@ function dayRows(
  * whole span was worked, and the duration beside it already says how much was.
  */
 function describeHours(hours: number[]): string {
-  const worked = hours.map((seconds, hour) => ({ seconds, hour })).filter((entry) => entry.seconds > 0);
-  if (worked.length === 0) {
+  if (!hours.some((seconds) => seconds > 0)) {
     return "";
   }
-  const first = worked[0]?.hour ?? 0;
-  const last = worked[worked.length - 1]?.hour ?? 0;
+  // The span starts after the longest empty stretch, taken around the clock,
+  // so a night that crosses midnight reads `23:00 to 02:00` and not `00:00 to
+  // 00:00`.
+  let gapStart = 0;
+  let gapLength = 0;
+  let runStart = 0;
+  let run = 0;
+  for (let i = 0; i < 48; i += 1) {
+    if ((hours[i % 24] ?? 0) > 0) {
+      run = 0;
+      continue;
+    }
+    if (run === 0) {
+      runStart = i;
+    }
+    run += 1;
+    if (run > gapLength) {
+      gapLength = run;
+      gapStart = runStart;
+    }
+  }
+  if (gapLength === 0) {
+    return "All 24 hours";
+  }
+  const first = (gapStart + gapLength) % 24;
+  const last = (gapStart + 23) % 24;
   return `${pad(first)}:00 to ${pad((last + 1) % 24)}:00`;
 }
 
@@ -583,6 +634,7 @@ function lifetimeOf(days: Record<DayKey, DayRecord>, streakInfo: Streaks): Lifet
     since,
     sinceText: since === undefined ? "Nothing tracked yet" : describeDate(since),
     total: duration(seconds),
+    seconds,
     activeDays: dates.length,
     longestStreak: streakInfo.longest,
   };

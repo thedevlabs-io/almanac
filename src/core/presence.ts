@@ -39,6 +39,29 @@ export const SUSPEND_MS = 4 * TICK_MS;
 export const MACHINE_GRACE_WINDOWS = 2;
 
 /**
+ * How long a freshly opened window's `state.active` flag is distrusted.
+ *
+ * VS Code initialises the flag to true when a window opens, on the theory that
+ * opening it was an interaction, and only clears it once its DOM tracker has
+ * seen no keydown or mousedown for two 30 second checks plus a 10 second
+ * debounce (`domActivityTracker.ts` and `userActivityService.ts` in the VS Code
+ * source). A window restored at login and never touched therefore reads as
+ * active for up to 100 seconds, and stamping that as human would then hold the
+ * clock open for the whole idle window. Past this settle time the flag can
+ * only be true because a person did something since, so it is trusted from
+ * then on, or earlier the moment any other proof of a person arrives.
+ */
+export const ACTIVE_SETTLE_MS = 120 * 1000;
+
+/**
+ * How long the clock has to have been closed before it reopening counts as a
+ * new session. Five minutes, so switching to a browser and back is one sitting
+ * and coming back from lunch is two. The idle window has already run its course
+ * before the clock closes at all, so the real break is longer than this.
+ */
+export const SESSION_GAP_MS = 5 * 60 * 1000;
+
+/**
  * A viewport move this soon after a content change is the edit's own reflow,
  * not a person scrolling. Generous on purpose: ignoring a real scroll costs
  * nothing, because you just typed and the clock is already open, while counting
@@ -82,8 +105,8 @@ export type SignalKind =
  * This is not the tier system this rewrite removed. The old design ranked
  * signals by how much they resembled a keystroke in a text editor, which meant
  * terminal work could never open the clock at all. The human tier here is
- * `window.state.active`, VS Code's own recent-interaction flag, which sees the
- * terminal, the Simple Browser, webviews and the settings editor alike. What
+ * `window.state.active`, VS Code's own recent-interaction flag, which sees a
+ * keydown or mousedown anywhere in the window, the terminal included. What
  * `machine` covers is the genuinely ambiguous evidence: output from a command,
  * a task restarting, an agent editing the file you have open, a debugger
  * landing on a frame. Those extend a clock a person opened, within
@@ -155,9 +178,14 @@ export function creditFor(
   return Math.round(Math.min(gap, TICK_MS) / 1000);
 }
 
-/** A session begins on the transition into activity, not on every tick inside one. */
-export function startsSession(wasActive: boolean, nowActive: boolean): boolean {
-  return !wasActive && nowActive;
+/**
+ * Whether a tick credited now begins a session. `lastCredited` is the epoch ms
+ * of the last credited tick, or zero when there has not been one. Counting
+ * every reopening of the clock would make an alt-tab to a browser a session,
+ * and a machine that slept for two minutes another.
+ */
+export function startsSession(lastCredited: number, now: number): boolean {
+  return lastCredited === 0 || now - lastCredited > SESSION_GAP_MS;
 }
 
 export interface Explanation {
