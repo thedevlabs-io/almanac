@@ -287,3 +287,44 @@ test("clearing while another window holds the lock fails loudly", async () => {
   const database = (await read(directory)) as { days: Record<string, unknown> };
   assert.equal(Object.keys(database.days).length, 1, "the data is still there, and the user was told");
 });
+
+// The window-mode prompt keys off this, so it must fire for a second window's
+// write and never for a window's own.
+test("a store notices when another window moved the file, and not its own writes", async () => {
+  const directory = await tempDir();
+  const first = new Store(directory, () => 730);
+  await first.load();
+  first.addTick("2026-08-20", { seconds: 60, hour: 9 });
+  await first.flush();
+  first.addTick("2026-08-20", { seconds: 60, hour: 10 });
+  await first.flush();
+  await first.sync();
+  assert.equal(first.otherWindowSeen, false);
+
+  const second = new Store(directory, () => 730);
+  await second.load();
+  assert.equal(second.otherWindowSeen, false, "the first read is not another window");
+  second.addTick("2026-08-20", { seconds: 30, hour: 11 });
+  await second.flush();
+  assert.equal(second.otherWindowSeen, false, "a window's own write does not count");
+
+  await first.sync();
+  assert.equal(first.otherWindowSeen, true);
+  assert.equal(first.day("2026-08-20").activeSeconds, 150);
+
+  first.addTick("2026-08-20", { seconds: 15, hour: 12 });
+  await first.flush();
+  await second.sync();
+  assert.equal(second.otherWindowSeen, true, "the other direction is seen too");
+
+  const alone = new Store(await tempDir(), () => 730);
+  await alone.load();
+  alone.addTick("2026-08-20", { seconds: 60, hour: 9 });
+  await alone.flush();
+  await alone.clear();
+  await alone.sync();
+  assert.equal(alone.otherWindowSeen, false, "clearing is this window's own write");
+  first.dispose();
+  second.dispose();
+  alone.dispose();
+});

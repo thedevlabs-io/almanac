@@ -6,6 +6,7 @@ import { SettingsCache } from "./tracking/settings";
 import { Tracker } from "./tracking/tracker";
 import { Dashboard } from "./ui/dashboard";
 import { offerIntroduction, showWalkthrough } from "./ui/onboarding";
+import { chooseWindowMode, offerWindowMode } from "./ui/windowMode";
 import { ReportPanel } from "./ui/report";
 import { StatusBar } from "./ui/statusBar";
 
@@ -25,10 +26,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // The tracker and the store are disposed in `deactivate`, where the final
   // flush can be awaited. Registering them here as well would dispose them
   // twice.
+  // The module-level `store` is `Store | undefined` again inside a closure.
+  const activity = store;
   context.subscriptions.push(
     statusBar,
     tracker.onDidChange(() => statusBar.refresh()),
     store.onDidChange(() => statusBar.refresh()),
+    store.onDidChange(() => {
+      offerWindowMode(context, activity, settings).catch((error) => {
+        console.error("[Almanac] could not ask how windows should count:", error);
+      });
+    }),
     settings.onDidChange(() => statusBar.refresh())
   );
 
@@ -84,6 +92,7 @@ function registerCommands(
   });
 
   register("almanac.setClient", () => setClientForRepository(settings));
+  register("almanac.windowMode", () => chooseWindowMode(settings));
 
   register("almanac.export", async () => {
     await store.flush();

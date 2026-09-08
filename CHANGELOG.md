@@ -19,6 +19,13 @@ All notable changes to Almanac are recorded here. The format follows
   the day, and the dashboard's Where tab, the report's By client tab and
   **Why am I idle right now?** all say so when the setting is on. Two windows
   on the same repository count it twice.
+- **Almanac: Choose how several windows count**, a palette command that
+  switches between splitting by focus and counting each window, with the
+  current choice marked.
+- **A one-time question when a second window appears.** The first time another
+  window writes the activity file, Almanac asks which way you want the hour
+  counted, unless the setting was already set by hand. The first window to
+  notice asks, and dismissing it leaves the default in place.
 
 ## [1.4.0]
 

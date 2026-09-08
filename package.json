@@ -68,6 +68,10 @@
         "title": "Almanac: Set the client for this repository"
       },
       {
+        "command": "almanac.windowMode",
+        "title": "Almanac: Choose how several windows count"
+      },
+      {
         "command": "almanac.export",
         "title": "Almanac: Export my data to JSON"
       },
@@ -119,7 +123,7 @@
           "type": "boolean",
           "default": false,
           "order": 6,
-          "markdownDescription": "Keep a repository's clock running in a VS Code window you have switched away from, as long as something keeps happening in it after you leave. Two windows on two repositories for an hour then show an hour each, while your day still shows one hour, so repository figures and client reports no longer add up to the day total. Off, the hour is split between the two by which window had focus. Needs `almanac.trackProjects`."
+          "markdownDescription": "Keep a repository's clock running in a VS Code window you have switched away from, as long as something keeps happening in it after you leave. Two windows on two repositories for an hour then show an hour each, while your day still shows one hour, so repository figures and client reports no longer add up to the day total. Off, the hour is split between the two by which window had focus. Needs `almanac.trackProjects`. Switch it from the palette with **Almanac: Choose how several windows count**."
         },
         "almanac.trackGitCommits": {
           "type": "boolean",

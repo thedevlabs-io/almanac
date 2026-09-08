@@ -67,6 +67,7 @@ export class Store {
   private timer: ReturnType<typeof setTimeout> | undefined;
   /** Serialises syncs, so two can never interleave on the same file. */
   private syncing: Promise<void> = Promise.resolve();
+  private movedUnderneath = false;
   private readonly listeners = new Set<Listener>();
 
   constructor(
@@ -113,6 +114,16 @@ export class Store {
 
   private pruned(days: Record<DayKey, DayRecord>): Record<DayKey, DayRecord> {
     return prune(days, shift(keyOf(new Date()), -this.retention));
+  }
+
+  /**
+   * Whether the file has ever moved under this window since it read or wrote
+   * it. In practice that is another VS Code window writing; a sync client or a
+   * hand edit would read the same way, and is close enough to warrant the same
+   * question.
+   */
+  get otherWindowSeen(): boolean {
+    return this.movedUnderneath;
   }
 
   get days(): Record<DayKey, DayRecord> {
@@ -290,6 +301,9 @@ export class Store {
       this.diskText = this.baseText;
       this.diskStamp = stamp;
       return this.base;
+    }
+    if (this.baseStamp !== "") {
+      this.movedUnderneath = true;
     }
     const text = await fs.readFile(this.file, "utf8");
     this.diskText = text;

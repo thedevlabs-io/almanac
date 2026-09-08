@@ -85,6 +85,9 @@ The repository rows and the client report show an hour each, and both pages say
 so when the setting is on, because the rows no longer add up to the day. Two
 windows open on the same repository count it twice.
 
+Almanac asks which you want the first time it notices a second window, and
+**Almanac: Choose how several windows count** switches it at any time.
+
 ## Privacy
 
 There is no network code. No account, no sync, no telemetry. The dashboard's
