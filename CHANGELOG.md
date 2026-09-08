@@ -4,6 +4,18 @@ All notable changes to Almanac are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Almanac follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1]
+
+### Added
+
+- **Almanac: Choose how several windows count**, a palette command that
+  switches between splitting by focus and counting each window, with the
+  current choice marked.
+- **A one-time question when a second window appears.** The first time another
+  window writes the activity file, Almanac asks which way you want the hour
+  counted, unless the setting was already set by hand. The first window to
+  notice asks, and dismissing it leaves the default in place.
+
 ## [1.5.0]
 
 ### Added
