@@ -175,9 +175,15 @@ function clientsPane(report: Report, styles: DynamicStyles, active: boolean): st
   return pane(
     "clients",
     active,
-    report.rounding === "none"
-      ? "Repository time mapped to clients. An unmapped repository bills under its own name rather than disappearing."
-      : `Repository time mapped to clients, rounded up to ${report.rounding} per client per day. An unmapped repository bills under its own name rather than disappearing.`,
+    `${
+      report.rounding === "none"
+        ? "Repository time mapped to clients."
+        : `Repository time mapped to clients, rounded up to ${report.rounding} per client per day.`
+    } An unmapped repository bills under its own name rather than disappearing.${
+      report.concurrentProjects
+        ? " Each repository was timed in its own window, focused or not, so two clients can each hold the same hour and the total here can exceed your day."
+        : ""
+    }`,
     `<div class="grid cols">${inner}</div>`
   );
 }

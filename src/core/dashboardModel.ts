@@ -211,6 +211,8 @@ export interface DashboardModel {
   languages: LabelledSlice[];
   signals: LabelledSlice[];
   repositories: RepoRow[];
+  /** Repository time is counted per window, so its rows can add up to more than the day. */
+  concurrentProjects: boolean;
   punchcard: Punchcard;
   punchBars: PunchBar[];
   peakHourLabel: string;
@@ -250,6 +252,8 @@ export interface ModelOptions {
   minStreakMinutes?: number;
   /** A day to open the detail for, from a click on its square. */
   selected?: DayKey;
+  /** Whether `almanac.concurrentProjects` is on, so the view can say the repository rows may exceed the day. */
+  concurrentProjects?: boolean;
 }
 
 export function buildDashboard(
@@ -296,6 +300,7 @@ export function buildDashboard(
       text: duration(slice.seconds),
     })),
     repositories: repoRows(repositories(totals)),
+    concurrentProjects: options.concurrentProjects ?? false,
     punchcard: hours,
     punchBars: punchBars(totals.hours),
     peakHourLabel: peakLabel(hours.peakHour),
@@ -498,7 +503,9 @@ function dayDetail(
     },
     typedPercent: Math.round(typedShare(totals.composition) * 100),
     composition: totals.composition,
-    empty: totals.seconds === 0,
+    // Repository time can exist without day time under concurrentProjects,
+    // and a day the report bills must not read as nothing tracked.
+    empty: totals.seconds === 0 && Object.keys(totals.projects).length === 0,
   };
 }
 

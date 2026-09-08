@@ -121,13 +121,23 @@ export interface PresenceState {
   lastSignal: number;
   /** Epoch ms of the last signal a person demonstrably produced. Zero means none. */
   lastHuman: number;
+  /** Epoch ms focus last left the window. Zero when it has not since this state began. */
+  unfocusedAt: number;
   lastKind?: SignalKind;
 }
 
 export function initialState(focused: boolean): PresenceState {
   // Zero, not now. Opening a window is not working in it, so a window restored
   // at login and left alone credits nothing until something happens in it.
-  return { focused, lastSignal: 0, lastHuman: 0 };
+  return { focused, lastSignal: 0, lastHuman: 0, unfocusedAt: 0 };
+}
+
+/** Records a focus change, stamping the moment focus left so `isEngaged` can tell before from after. */
+export function withFocus(state: PresenceState, focused: boolean, now: number): PresenceState {
+  if (focused === state.focused) {
+    return state;
+  }
+  return { ...state, focused, unfocusedAt: focused ? state.unfocusedAt : now };
 }
 
 export function withinIdle(now: number, last: number, idleMs: number): boolean {
@@ -135,17 +145,23 @@ export function withinIdle(now: number, last: number, idleMs: number): boolean {
 }
 
 /**
- * Focused, and either a person did something inside the idle window, or a
- * machine did while still inside the grace period past the last thing a person
- * did. Focus alone is never enough: a focused window on a second monitor would
- * otherwise bank a whole meeting.
+ * Whether something is going on in the window, focus aside: either a person
+ * did something inside the idle window, or a machine did while still inside
+ * the grace period past the last thing a person did.
  *
  * Machine evidence cannot open a clock in a window where a person has done
  * nothing at all, which is what stops a session restored at login with a dev
  * server running from recording anything.
+ *
+ * On its own this is not enough to credit a minute of your day; `isActive`
+ * adds focus. It is the rule `almanac.concurrentProjects` uses to keep a
+ * repository's clock running in a window you have switched away from, and
+ * there it demands a signal from after focus left. Without that, the last
+ * keystroke before you switched away would carry the repository through a
+ * whole idle window of nothing, on every alt-tab, in every window.
  */
-export function isActive(state: PresenceState, now: number, idleMs = DEFAULT_IDLE_MS): boolean {
-  if (!state.focused) {
+export function isEngaged(state: PresenceState, now: number, idleMs = DEFAULT_IDLE_MS): boolean {
+  if (!state.focused && state.lastSignal <= state.unfocusedAt) {
     return false;
   }
   if (withinIdle(now, state.lastHuman, idleMs)) {
@@ -158,24 +174,49 @@ export function isActive(state: PresenceState, now: number, idleMs = DEFAULT_IDL
 }
 
 /**
- * Seconds to credit for the interval ending at `now`. Capped at one tick so a
- * slow event loop cannot inflate an interval, and dropped entirely when the gap
- * says the host was suspended rather than merely busy.
+ * Focused and engaged. Focus alone is never enough: a focused window on a
+ * second monitor would otherwise bank a whole meeting.
  */
+export function isActive(state: PresenceState, now: number, idleMs = DEFAULT_IDLE_MS): boolean {
+  return state.focused && isEngaged(state, now, idleMs);
+}
+
+/**
+ * Seconds in the interval ending at `now`. Capped at one tick so a slow event
+ * loop cannot inflate an interval, and dropped entirely when the gap says the
+ * host was suspended rather than merely busy.
+ */
+export function intervalSeconds(now: number, lastTick: number): number {
+  const gap = now - lastTick;
+  if (gap <= 0 || gap > SUSPEND_MS) {
+    return 0;
+  }
+  return Math.round(Math.min(gap, TICK_MS) / 1000);
+}
+
+/** Seconds to credit to the day for the interval ending at `now`. */
 export function creditFor(
   state: PresenceState,
   now: number,
   lastTick: number,
   idleMs = DEFAULT_IDLE_MS
 ): number {
-  if (!isActive(state, now, idleMs)) {
-    return 0;
-  }
-  const gap = now - lastTick;
-  if (gap <= 0 || gap > SUSPEND_MS) {
-    return 0;
-  }
-  return Math.round(Math.min(gap, TICK_MS) / 1000);
+  return isActive(state, now, idleMs) ? intervalSeconds(now, lastTick) : 0;
+}
+
+/**
+ * Seconds to credit to this window's repository alone, whether or not the
+ * window is focused. Only `almanac.concurrentProjects` uses it. The day total
+ * still comes from `creditFor`, so an hour across two windows is an hour of
+ * your day and an hour on each repository.
+ */
+export function projectCreditFor(
+  state: PresenceState,
+  now: number,
+  lastTick: number,
+  idleMs = DEFAULT_IDLE_MS
+): number {
+  return isEngaged(state, now, idleMs) ? intervalSeconds(now, lastTick) : 0;
 }
 
 /**
@@ -202,12 +243,20 @@ export function explain(
   state: PresenceState,
   now: number,
   idleMs = DEFAULT_IDLE_MS,
-  enabled = true
+  enabled = true,
+  concurrentProjects = false
 ): Explanation {
   if (!enabled) {
     return { active: false, reason: "Tracking is paused." };
   }
   if (!state.focused) {
+    if (concurrentProjects && isEngaged(state, now, idleMs)) {
+      return {
+        active: false,
+        reason:
+          "The VS Code window is not focused, so it adds nothing to your day. Any repository open here still counts, because almanac.concurrentProjects is on and something has happened since you left.",
+      };
+    }
     return { active: false, reason: "The VS Code window is not focused." };
   }
   if (state.lastHuman === 0) {

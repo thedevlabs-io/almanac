@@ -6,6 +6,7 @@ import {
   type PresenceState,
   type SignalKind,
   type SignalSource,
+  withFocus,
 } from "../core/presence";
 import type { SettingsCache } from "./settings";
 
@@ -72,7 +73,7 @@ export class InputSignals {
    */
   sample(): void {
     const { focused, active } = vscode.window.state;
-    this.state = { ...this.state, focused };
+    this.state = withFocus(this.state, focused, Date.now());
     this.noteWindowActive(active);
     if (!active || !focused || !this.trustsActive()) {
       return;
@@ -126,7 +127,7 @@ export class InputSignals {
   watch(): void {
     this.subscriptions.push(
       vscode.window.onDidChangeWindowState((state) => {
-        this.state = { ...this.state, focused: state.focused };
+        this.state = withFocus(this.state, state.focused, Date.now());
         this.noteWindowActive(state.active);
         if (state.focused && state.active && this.trustsActive()) {
           this.signal("window", "human");

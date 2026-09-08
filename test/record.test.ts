@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { applyTick, bump, mergeDay, mergeDays, setCommits } from "../src/core/record";
+import { addProjectSeconds, applyTick, bump, mergeDay, mergeDays, setCommits } from "../src/core/record";
 import { emptyDay } from "../src/core/types";
 
 test("merging two records of a day sums every counter", () => {
@@ -49,4 +49,29 @@ test("merging maps keeps days only one side has", () => {
   assert.deepEqual(Object.keys(merged).sort(), ["2026-08-20", "2026-08-21"]);
   assert.equal(merged["2026-08-20"]?.activeSeconds, 60);
   assert.equal(merged["2026-08-21"]?.activeSeconds, 30);
+});
+
+test("project seconds land on the repository and nowhere else", () => {
+  const day = applyTick(emptyDay("2026-08-20"), { seconds: 60, hour: 9, project: { repo: "acme", folder: "." } });
+  const after = addProjectSeconds(day, { repo: "beta", folder: "api" }, 45);
+  assert.equal(after.activeSeconds, 60);
+  assert.deepEqual(after.hours, day.hours);
+  assert.deepEqual(after.projects, {
+    acme: { seconds: 60, folders: { ".": 60 } },
+    beta: { seconds: 45, folders: { api: 45 } },
+  });
+  assert.equal(addProjectSeconds(day, { repo: "beta", folder: "." }, 0), day);
+});
+
+// Two windows, each crediting its own repository for the same hour under
+// almanac.concurrentProjects. Only the focused one adds to the day.
+test("a merge keeps repository time counted per window above the day total", () => {
+  const focused = applyTick(emptyDay("2026-08-20"), { seconds: 3600, hour: 9, project: { repo: "acme", folder: "." } });
+  const unfocused = addProjectSeconds(emptyDay("2026-08-20"), { repo: "beta", folder: "." }, 3600);
+  const merged = mergeDay(focused, unfocused);
+  assert.equal(merged.activeSeconds, 3600);
+  assert.deepEqual(merged.projects, {
+    acme: { seconds: 3600, folders: { ".": 3600 } },
+    beta: { seconds: 3600, folders: { ".": 3600 } },
+  });
 });

@@ -29,6 +29,23 @@ export function applyTick(record: DayRecord, tick: Tick): DayRecord {
   return next;
 }
 
+/**
+ * Repository time with no day time behind it. This is what an unfocused window
+ * records under `almanac.concurrentProjects`: the repository's clock runs, the
+ * day's does not, so `activeSeconds`, hours, languages and signals are left
+ * alone and the repository rows may add up to more than the day.
+ */
+export function addProjectSeconds(
+  record: DayRecord,
+  project: NonNullable<Tick["project"]>,
+  seconds: number
+): DayRecord {
+  if (seconds <= 0) {
+    return record;
+  }
+  return { ...record, projects: addProjectTime(record.projects, project, seconds) };
+}
+
 export type Counter = "edits" | "saves" | "files" | "sessions";
 
 export function bump(record: DayRecord, counter: Counter, by = 1): DayRecord {

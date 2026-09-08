@@ -129,6 +129,7 @@ export class Dashboard {
     const model = buildDashboard(this.store.days, {
       minStreakMinutes: this.settings.current.streakMinMinutes,
       selected: this.selectedDay,
+      concurrentProjects: this.settings.current.trackProjects && this.settings.current.concurrentProjects,
     });
     this.panel.webview.html = dashboardHtml(
       model,

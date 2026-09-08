@@ -2,7 +2,7 @@
   "name": "almanac",
   "displayName": "Almanac",
   "description": "Local-only heatmaps and streaks for how you actually work: days, languages, repositories and hours, tracked honestly.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "thedevlabs-io",
   "author": {
     "name": "thedevlabs-io"
@@ -115,16 +115,22 @@
           "order": 5,
           "markdownDescription": "Record which repository you worked in. Almanac stores the **repository folder name** and the path of the folder you opened relative to the repository root, so a monorepo subfolder rolls up under its repository. Never the absolute path, never file names."
         },
+        "almanac.concurrentProjects": {
+          "type": "boolean",
+          "default": false,
+          "order": 6,
+          "markdownDescription": "Keep a repository's clock running in a VS Code window you have switched away from, as long as something keeps happening in it after you leave. Two windows on two repositories for an hour then show an hour each, while your day still shows one hour, so repository figures and client reports no longer add up to the day total. Off, the hour is split between the two by which window had focus. Needs `almanac.trackProjects`."
+        },
         "almanac.trackGitCommits": {
           "type": "boolean",
           "default": true,
-          "order": 6,
+          "order": 7,
           "description": "Count commits you authored in open repositories, read through VS Code's built-in Git extension."
         },
         "almanac.statusBar.enabled": {
           "type": "boolean",
           "default": true,
-          "order": 7,
+          "order": 8,
           "description": "Show the current streak and today's active time in the status bar."
         },
         "almanac.streak.minMinutes": {
@@ -132,7 +138,7 @@
           "default": 5,
           "minimum": 1,
           "maximum": 240,
-          "order": 8,
+          "order": 9,
           "description": "Minutes of active work a day needs before it counts towards a streak."
         },
         "almanac.retentionDays": {
@@ -140,7 +146,7 @@
           "default": 730,
           "minimum": 30,
           "maximum": 3650,
-          "order": 9,
+          "order": 10,
           "description": "How many days of history to keep. Older days are deleted."
         },
         "almanac.clients": {
@@ -149,7 +155,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "order": 10,
+          "order": 11,
           "markdownDescription": "Maps a repository name to the client it belongs to, so several repositories report as one client, e.g. `{ \"thedevlabs-api\": \"thedevlabs\" }`. Repositories with no entry report under their own name. Set it from **Almanac: Set the client for this repository**."
         },
         "almanac.report.rounding": {
@@ -167,7 +173,7 @@
             "Round each day up to the hour"
           ],
           "default": "none",
-          "order": 11,
+          "order": 12,
           "description": "Rounding applied per client per day in reports. Raw time is always shown alongside."
         }
       }

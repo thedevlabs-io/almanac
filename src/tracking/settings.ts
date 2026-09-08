@@ -8,6 +8,7 @@ export interface Settings {
   countTerminal: boolean;
   countDebug: boolean;
   trackProjects: boolean;
+  concurrentProjects: boolean;
   trackGitCommits: boolean;
   statusBar: boolean;
   streakMinMinutes: number;
@@ -24,6 +25,7 @@ export function readSettings(): Settings {
     countTerminal: config.get<boolean>("countTerminal", true),
     countDebug: config.get<boolean>("countDebug", true),
     trackProjects: config.get<boolean>("trackProjects", true),
+    concurrentProjects: config.get<boolean>("concurrentProjects", false),
     trackGitCommits: config.get<boolean>("trackGitCommits", true),
     statusBar: config.get<boolean>("statusBar.enabled", true),
     streakMinMinutes: config.get<number>("streak.minMinutes", 5),
