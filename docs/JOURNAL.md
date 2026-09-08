@@ -77,8 +77,8 @@
   every window, so a single-window user's client report would routinely exceed
   the day. The day detail also stopped calling a day with only repository time
   empty. #fix #tracking
-- `src/ui/windowMode.ts`, `src/storage/store.ts` - the palette command and the
-  one-time prompt for the same setting. The prompt keys off a new
+- `src/ui/windowMode.ts`, `src/storage/store.ts` - (1.5.1) the palette command and
+  the one-time prompt for the same setting. The prompt keys off a new
   `otherWindowSeen` flag the store raises when the file's stamp moved under a
   window that had already read it, which only another window can cause. The
   asked flag lives in `globalState`, so the first window to notice asks and the
