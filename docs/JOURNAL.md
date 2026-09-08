@@ -27,8 +27,12 @@
 - A session is a credited tick more than `SESSION_GAP_MS` after the last one,
   not every reopening of the clock. Sessions and distinct files are counted per
   window and summed by the merge, so a file open in two windows counts twice
-  and a long stint in each window is a session in each. Seconds cannot be
-  double counted, because only the focused window credits them.
+  and a long stint in each window is a session in each. Day seconds cannot be
+  double counted, because only the focused window credits them. Repository
+  seconds can, by choice: `almanac.concurrentProjects` lets an unfocused window
+  credit its repository through `store.addProjectTime`, which touches nothing
+  but `projects`, so `activeSeconds` stays the focused window's alone and the
+  repository rows may exceed it.
 - `TerminalShellExecution.read()` is subscribed to purely so that the arrival of
   output acts as a signal during a long command. The chunks are discarded
   unread. Do not start inspecting them; that would put shell output inside the
@@ -49,6 +53,30 @@
   overwritten, so a parse bug can never destroy history.
 
 ## Log
+
+### 2026-09-08 (concurrent repository time, 1.5.0)
+
+- `src/core/presence.ts` - `isActive` split into `isEngaged` (the two-part rule
+  without focus) plus focus, and `creditFor` into `intervalSeconds` plus the
+  rule, so `projectCreditFor` could reuse both without a second copy of the
+  idle and grace arithmetic. `explain` says when an unfocused window is still
+  counting for its repository. #tracking
+- `src/tracking/tracker.ts` - under `almanac.concurrentProjects` an unfocused
+  tick goes through `store.addProjectTime`, never `addTick`, so it opens no
+  session and touches no hour, language or signal. Asked for because two
+  windows on two clients split an hour by focus and each client's report showed
+  half. Off by default: on, the repository rows stop adding up to the day, and
+  the dashboard and report say so. #feature #tracking
+- `src/core/dashboardModel.ts`, `src/core/report.ts` - carry the setting as a
+  boolean on the view model, so the markup can print the caveat without the
+  panels growing a settings parameter. #ui
+- `src/core/presence.ts`, `src/tracking/signals.ts` - `PresenceState` gained
+  `unfocusedAt`, and `isEngaged` refuses an unfocused window whose last signal
+  predates it. Review caught that without this the keystroke before every
+  alt-tab carried the repository through a whole idle window of nothing, in
+  every window, so a single-window user's client report would routinely exceed
+  the day. The day detail also stopped calling a day with only repository time
+  empty. #fix #tracking
 
 ### 2026-09-01 (multi-window data loss, phantom launch time, 1.4.0)
 

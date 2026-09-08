@@ -20,3 +20,8 @@ total of what is beneath them. The folders you actually opened are marked.
 What gets stored is the repository folder name and the path from the repository
 root to the folder you opened. Never an absolute path, never a file name.
 Turn it off entirely with `almanac.trackProjects`.
+
+Two windows on two repositories split an hour between them by focus. If they
+are two clients and each should see the whole hour, turn on
+`almanac.concurrentProjects`. Your day stays an hour; the repositories stop
+adding up to it, and the dashboard and report say so.

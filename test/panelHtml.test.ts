@@ -339,3 +339,28 @@ test("no inline style attribute survives the filter or a day detail either", () 
     assert.equal(/\sstyle\s*=\s*["']/.test(html), false, `${name} has an inline style attribute`);
   }
 });
+
+// A figure that no longer adds up to the day has to say so on the page, or
+// the first person to compare the two will assume the tracker is broken.
+test("both panels say when repository time is counted per window", () => {
+  const plainReport = reportHtml(buildReport(days(), { from: "2026-08-20", to: "2026-08-20" }), "month", CSP_SOURCE, FONTS, "dark");
+  const concurrentReport = reportHtml(
+    buildReport(days(), { from: "2026-08-20", to: "2026-08-20", concurrentProjects: true }),
+    "month",
+    CSP_SOURCE,
+    FONTS,
+    "dark"
+  );
+  assert.equal(/timed in its own window/.test(plainReport), false);
+  assert.ok(/timed in its own window/.test(concurrentReport));
+
+  const plainDashboard = dashboard();
+  const concurrentDashboard = dashboardHtml(
+    buildDashboard(days(), { today: "2026-08-20", concurrentProjects: true }),
+    CSP_SOURCE,
+    FONTS,
+    "dark"
+  );
+  assert.equal(/timed in its own window/.test(plainDashboard), false);
+  assert.ok(/timed in its own window/.test(concurrentDashboard));
+});

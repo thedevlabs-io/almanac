@@ -68,6 +68,23 @@ Stored: the repository folder name, and the path from the repository root to the
 folder you opened. Never an absolute path, never a file name. Turn it off with
 `almanac.trackProjects`.
 
+### Two windows, two repositories
+
+Only the focused window adds to your day, so an hour spent switching between two
+VS Code windows is one hour, split between their repositories by which one had
+focus. That is the default and the honest reading of "how long did I work".
+
+If the two windows are two clients and you want each to see the full hour, turn
+on `almanac.concurrentProjects`. A window you have switched away from then keeps
+its repository's clock running on the same rule as the day's clock, focus aside:
+something has to have happened in it since you left, inside the idle window,
+and machine evidence alone carries it no further than two idle windows past the
+last thing you did there. A window you switched away from and nothing happens
+in stops at once. Your day still shows one hour.
+The repository rows and the client report show an hour each, and both pages say
+so when the setting is on, because the rows no longer add up to the day. Two
+windows open on the same repository count it twice.
+
 ## Privacy
 
 There is no network code. No account, no sync, no telemetry. The dashboard's

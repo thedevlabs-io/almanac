@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import { keyOf } from "../core/day";
-import { creditFor, explain, startsSession, TICK_MS, type Explanation } from "../core/presence";
+import {
+  creditFor,
+  explain,
+  projectCreditFor,
+  startsSession,
+  TICK_MS,
+  type Explanation,
+} from "../core/presence";
 import type { Store } from "../storage/store";
 import { commitsByDay } from "./git";
 import { ProjectResolver } from "./projects";
@@ -106,7 +113,7 @@ export class Tracker {
   private tick(): void {
     const moment = new Date();
     const now = moment.getTime();
-    const { enabled, idleMs, trackProjects } = this.settings.current;
+    const { enabled, idleMs, trackProjects, concurrentProjects } = this.settings.current;
 
     if (!enabled) {
       this.lastTick = now;
@@ -118,17 +125,27 @@ export class Tracker {
     this.signals.sample();
     const state = this.signals.presence;
     const seconds = creditFor(state, now, this.lastTick, idleMs);
+    const projectSeconds =
+      trackProjects && concurrentProjects ? projectCreditFor(state, now, this.lastTick, idleMs) : 0;
     this.lastTick = now;
+    const date = keyOf(moment);
+    const project = trackProjects ? this.projects.current() : undefined;
+
     if (seconds <= 0) {
+      // Not focused, or nothing happening. Under concurrentProjects the
+      // repository alone keeps counting: no session, no hour, no language,
+      // nothing that would make the day itself longer.
+      if (projectSeconds > 0 && project) {
+        this.store.addProjectTime(date, { repo: project.repo, folder: project.folder }, projectSeconds);
+        this.changed.fire();
+      }
       return;
     }
 
-    const date = keyOf(moment);
     if (startsSession(this.lastCredited, now)) {
       this.store.count(date, "sessions");
     }
     this.lastCredited = now;
-    const project = trackProjects ? this.projects.current() : undefined;
     const language = currentLanguage();
     // The whole interval lands on the day and hour read at the end of the
     // tick. Across midnight that misfiles at most one tick, fifteen seconds,
@@ -160,7 +177,8 @@ export class Tracker {
       this.signals.presence,
       Date.now(),
       this.settings.current.idleMs,
-      this.settings.current.enabled
+      this.settings.current.enabled,
+      this.settings.current.trackProjects && this.settings.current.concurrentProjects
     );
   }
 

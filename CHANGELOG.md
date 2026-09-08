@@ -4,6 +4,22 @@ All notable changes to Almanac are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Almanac follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0]
+
+### Added
+
+- **`almanac.concurrentProjects`**, off by default. With two VS Code windows on
+  two repositories, only the focused window credited time, so an hour of
+  switching between them was split by focus and a client report for either
+  showed a fraction of it. Turned on, a window you have switched away from
+  keeps its repository's clock running as long as something keeps happening
+  in it, under the same idle window and machine grace as the day's clock. The
+  day total is unchanged: it still comes from the focused window alone. What
+  changes is that repository rows and client reports can add up to more than
+  the day, and the dashboard's Where tab, the report's By client tab and
+  **Why am I idle right now?** all say so when the setting is on. Two windows
+  on the same repository count it twice.
+
 ## [1.4.0]
 
 Two VS Code windows made the numbers a mess. This release is the reason why,

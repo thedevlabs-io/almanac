@@ -5,6 +5,7 @@ import { keyOf, shift, type DayKey } from "../core/day";
 import { migrate } from "../core/migrate";
 import {
   addChange,
+  addProjectSeconds,
   applyTick,
   bump,
   dayIn,
@@ -144,6 +145,10 @@ export class Store {
 
   addTick(date: DayKey, tick: Tick): void {
     this.update(date, (record) => applyTick(record, tick));
+  }
+
+  addProjectTime(date: DayKey, project: NonNullable<Tick["project"]>, seconds: number): void {
+    this.update(date, (record) => addProjectSeconds(record, project, seconds));
   }
 
   count(date: DayKey, counter: Counter, by = 1): void {

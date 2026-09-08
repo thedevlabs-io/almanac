@@ -265,7 +265,9 @@ function wherePane(model: DashboardModel, styles: DynamicStyles, active: boolean
   return pane(
     "where",
     active,
-    "Time follows the repository you were inside, then the language of the file in front of you. Only a repository folder name and a path relative to its root is ever stored.",
+    model.concurrentProjects
+      ? "Each repository is timed in its own window, focused or not, so the repositories here can add up to more than the day. The language split follows the window in front of you. Only a repository folder name and a path relative to its root is ever stored."
+      : "Time follows the repository you were inside, then the language of the file in front of you. Only a repository folder name and a path relative to its root is ever stored.",
     inner
   );
 }

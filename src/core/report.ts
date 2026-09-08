@@ -210,6 +210,8 @@ export interface Report {
   rounding: Rounding;
   /** The keys this report was narrowed to. Empty when it covers everything. */
   include: readonly string[];
+  /** Repository time was counted per window, so two clients can each hold the same hour. */
+  concurrentProjects: boolean;
   rows: ReportRow[];
   clients: ClientTotal[];
   seconds: number;
@@ -223,6 +225,8 @@ export interface ReportOptions {
   rounding?: Rounding;
   /** Repository or folder keys to report on. Empty means everything. */
   include?: readonly string[];
+  /** Whether `almanac.concurrentProjects` is on, so the report can say its rows may exceed the day. */
+  concurrentProjects?: boolean;
 }
 
 export function buildReport(
@@ -295,6 +299,7 @@ export function buildReport(
     to: options.to,
     rounding,
     include,
+    concurrentProjects: options.concurrentProjects ?? false,
     rows,
     clients: clientTotals,
     seconds: rows.reduce((sum, row) => sum + row.seconds, 0),

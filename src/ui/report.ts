@@ -143,6 +143,7 @@ export class ReportPanel {
       clients: this.settings.current.clients,
       rounding: this.settings.current.rounding,
       include: this.include,
+      concurrentProjects: this.settings.current.trackProjects && this.settings.current.concurrentProjects,
     });
   }
 
